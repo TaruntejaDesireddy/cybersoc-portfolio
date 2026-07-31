@@ -1,0 +1,66 @@
+﻿{
+    "name":  "c0de0017-0000-4000-8000-000000000017",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Automation Runbook or Webhook Created or Modified",
+                       "description":  "DETECTS\nCreation, modification, or publishing of an Azure Automation runbook, or creation of a webhook that triggers one.\n\nWHY IT MATTERS\nRunbooks execute code on a schedule under the Automation Account managed identity, which frequently holds broad subscription rights. A malicious runbook is durable, scheduled, privileged execution that survives credential resets. A webhook makes it triggerable from the internet without authentication (MITRE T1053, Scheduled Task/Job).\n\nTRIAGE\n1. Review the runbook content for encoded commands, outbound network calls, or credential access.\n2. Check the Automation Account managed identity permissions to understand blast radius.\n3. If a webhook was created, treat it as an unauthenticated remote execution endpoint and verify it is intended.\n4. Review the runbook job history for executions since the change.\n5. If unauthorized: remove the runbook and webhook, then rotate the Automation Account identity.\n\nFALSE POSITIVES\nLegitimate automation development and IaC-managed runbooks.\n\nSOURCE\nAzureActivity",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.AUTOMATION/AUTOMATIONACCOUNTS\"\n| where OperationNameValue has_any (\"RUNBOOKS\", \"WEBHOOKS\")\n| where OperationNameValue has_any (\"WRITE\", \"PUBLISH\", \"DRAFT\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Persistence",
+                                       "Execution"
+                                   ],
+                       "techniques":  [
+                                          "T1053"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Operation":  "OperationNameValue",
+                                             "AutomationObject":  "Resource",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Automation runbook or webhook changed: {{Resource}} by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} on automation object {{Resource}}."
+                                                }
+                   }
+}

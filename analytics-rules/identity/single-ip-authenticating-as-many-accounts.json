@@ -1,0 +1,54 @@
+﻿{
+    "name":  "c0de0039-0000-4000-8000-000000000039",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Single IP Authenticating as Many Accounts",
+                       "description":  "DETECTS\nA single IP address successfully authenticating as five or more distinct accounts within an hour.\n\nWHY IT MATTERS\nThe successful counterpart to password spray detection. Where spraying shows many failures from one source, this shows many successes, which means either a credential dump is being replayed or an attacker has established a foothold across multiple identities. Multi-account compromise from one source is a significantly worse position than a single compromised user (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Determine whether the IP is corporate NAT egress, which is the dominant benign explanation and must be excluded first.\n2. If not corporate, treat every listed account as potentially compromised.\n3. Look for a preceding spray from the same IP or subnet, which would confirm the attack chain.\n4. Review what each account did after authenticating.\n5. If confirmed: revoke sessions for all accounts, reset credentials, and block the source.\n\nFALSE POSITIVES\nCorporate NAT gateways, VPN concentrators, terminal servers, and Citrix farms all legitimately present many users behind one address. This rule requires an environment-specific exclusion list of known shared egress IPs before it is usable.\n\nSOURCE\nSigninLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| where ResultType == \"0\"\n| where isnotempty(UserPrincipalName)\n| summarize DistinctAccounts = dcount(UserPrincipalName), Accounts = make_set(UserPrincipalName, 25),\n    Logins = count(), StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by IPAddress, Location\n| where DistinctAccounts \u003e= 5\n| extend TimeGenerated = EndTime, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "CredentialAccess",
+                                       "InitialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "DistinctAccounts":  "DistinctAccounts",
+                                             "SourceIP":  "IPAddress",
+                                             "Location":  "Location",
+                                             "TotalLogins":  "Logins",
+                                             "Accounts":  "Accounts"
+                                         }
+                   }
+}

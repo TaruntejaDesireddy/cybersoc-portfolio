@@ -1,0 +1,65 @@
+﻿{
+    "name":  "c0de0015-0000-4000-8000-000000000015",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Sentinel Configuration Modified or Deleted",
+                       "description":  "DETECTS\nCreation, modification, or deletion of Sentinel analytics rules, automation rules, or data connectors.\n\nWHY IT MATTERS\nThis is the SOC watching its own back. Disabling a detection rule or removing a data connector blinds the platform to a specific attack technique, and unlike a diagnostic setting deletion it leaves the workspace looking healthy (MITRE T1562, Impair Defenses). Any unexplained change here undermines every other detection in this workspace.\n\nTRIAGE\n1. Identify exactly which rule or connector changed and what coverage it provided.\n2. Confirm the Caller is a SOC engineer and the change matches approved detection engineering work.\n3. If a rule was disabled or deleted, hunt retroactively for the activity it would have caught.\n4. Restore the configuration.\n5. If unauthorized: treat as an active intrusion with knowledge of the security stack, and review all rules for further tampering.\n\nFALSE POSITIVES\nLegitimate detection engineering, including the deployment of this very rule set. Expect activity during tuning windows.\n\nSOURCE\nAzureActivity",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.SECURITYINSIGHTS\"\n| where OperationNameValue has_any (\"ALERTRULES\", \"AUTOMATIONRULES\", \"DATACONNECTORS\")\n| where OperationNameValue has_any (\"DELETE\", \"WRITE\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1562"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Operation":  "OperationNameValue",
+                                             "Caller":  "Caller",
+                                             "SentinelObject":  "Resource",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Sentinel configuration changed: {{Resource}} by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} against Sentinel object {{Resource}}."
+                                                }
+                   }
+}

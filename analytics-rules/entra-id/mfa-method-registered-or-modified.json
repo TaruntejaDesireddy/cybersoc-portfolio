@@ -1,0 +1,57 @@
+﻿{
+    "name":  "c0de0044-0000-4000-8000-000000000044",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Entra - MFA Method Registered or Modified",
+                       "description":  "DETECTS\nRegistration, modification, or deletion of authentication methods and security information.\n\nWHY IT MATTERS\nRegistering an attacker-controlled MFA method on a compromised account converts a stolen password into durable access that survives a password reset, because the attacker can now satisfy MFA themselves. This is one of the most important post-compromise actions to catch, and it is frequently the step defenders miss when they reset a password but leave the rogue method in place (MITRE T1556, Modify Authentication Process).\n\nTRIAGE\n1. Determine whether the user registered the method themselves or an administrator did it for them.\n2. Correlate the timestamp against the user recent sign-ins. Registration immediately following an anomalous sign-in is a strong compromise indicator.\n3. Check the method type and, where visible, the phone number or device.\n4. Confirm with the user that they made the change.\n5. If unauthorized: remove the method, reset the password, revoke sessions, and re-verify all registered methods.\n\nFALSE POSITIVES\nRoutine device replacement, new phone enrolment, and initial MFA rollout campaigns will generate substantial volume.\n\nSOURCE\nAuditLogs",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "AuditLogs\n| where OperationName has_any (\"security info\", \"authentication method\", \"StrongAuthentication\")\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend TargetUser = tostring(TargetResources.userPrincipalName)\n| project TimeGenerated, Actor, TargetUser, OperationName, ResultReason, CorrelationId\n| extend Account = coalesce(TargetUser, Actor)",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Persistence",
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1556"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "Operation":  "OperationName",
+                                             "TargetUser":  "TargetUser",
+                                             "Reason":  "ResultReason"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Security info changed for {{TargetUser}} ({{OperationName}})",
+                                                    "alertDescriptionFormat":  "{{OperationName}} performed by {{Actor}} affecting authentication methods for {{TargetUser}}."
+                                                }
+                   }
+}

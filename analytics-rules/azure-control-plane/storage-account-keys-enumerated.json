@@ -1,0 +1,62 @@
+﻿{
+    "name":  "c0de0010-0000-4000-8000-000000000010",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Storage Account Keys Enumerated",
+                       "description":  "DETECTS\nA single caller listing storage account access keys five or more times within an hour.\n\nWHY IT MATTERS\nStorage account keys grant full, unrestricted data-plane access to every blob, file, queue, and table in the account, and they bypass Entra ID entirely, so no conditional access or MFA applies. Bulk enumeration across accounts is a strong pre-exfiltration signal (MITRE T1552, Unsecured Credentials).\n\nTRIAGE\n1. Review which storage accounts were targeted and whether they hold sensitive data.\n2. Confirm the Caller is an application or admin that legitimately needs key-based access.\n3. Check storage diagnostic logs for large read or list operations following the enumeration.\n4. Determine whether the accounts could use Entra ID auth or SAS instead of shared keys.\n5. If unauthorized: rotate both keys on every affected account immediately, then hunt for data access.\n\nFALSE POSITIVES\nBackup tooling, data pipelines, and IaC that retrieve keys on every run. Tune the threshold or exclude service principals used by known pipelines.\n\nSOURCE\nAzureActivity",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.STORAGE/STORAGEACCOUNTS/LISTKEYS\"\n| where ActivityStatusValue =~ \"Success\"\n| summarize AccessCount = count(), Accounts = make_set(Resource, 20), StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Caller, CallerIpAddress\n| where AccessCount \u003e= 5\n| extend TimeGenerated = EndTime, Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "CredentialAccess",
+                                       "Collection"
+                                   ],
+                       "techniques":  [
+                                          "T1552"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "KeyRequests":  "AccessCount",
+                                             "StorageAccounts":  "Accounts",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         }
+                   }
+}

@@ -1,0 +1,68 @@
+﻿{
+    "name":  "c0de0038-0000-4000-8000-000000000038",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Cross-Tenant Sign-in Activity",
+                       "description":  "DETECTS\nSuccessful sign-ins where the user home tenant differs from the resource tenant, indicating B2B collaboration or cross-tenant access.\n\nWHY IT MATTERS\nCross-tenant access is the boundary where your identity controls end and someone else policy begins. It is the mechanism behind supply-chain identity attacks, where a compromised partner tenant is used to reach into yours. It also reveals your own users authenticating outward, which may indicate data movement to an unsanctioned tenant (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Establish the direction: an external identity coming in, or your identity going out.\n2. Confirm the partner tenant is a sanctioned collaboration and cross-tenant access settings permit it deliberately.\n3. Review the application and resource accessed against the agreed collaboration scope.\n4. For outbound access, verify the destination tenant is an approved business relationship rather than a personal or shadow-IT tenant.\n5. Tighten cross-tenant access policy if the relationship is not intended.\n\nFALSE POSITIVES\nAll legitimate B2B collaboration produces these events. Low severity and best used as periodic review material rather than per-event alerting, unless your tenant has no intended B2B relationships.\n\nSOURCE\nSigninLogs",
+                       "severity":  "Low",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| where ResultType == \"0\"\n| where isnotempty(HomeTenantId) and isnotempty(ResourceTenantId)\n| where HomeTenantId != ResourceTenantId\n| project TimeGenerated, UserPrincipalName, IPAddress, HomeTenantId, ResourceTenantId, CrossTenantAccessType, AppDisplayName, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "InitialAccess",
+                                       "Collection"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "AccessType":  "CrossTenantAccessType",
+                                             "Application":  "AppDisplayName",
+                                             "User":  "UserPrincipalName",
+                                             "SourceIP":  "IPAddress",
+                                             "HomeTenant":  "HomeTenantId",
+                                             "ResourceTenant":  "ResourceTenantId"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Cross-tenant access by {{UserPrincipalName}} from {{IPAddress}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} accessed resources in tenant {{ResourceTenantId}} via {{CrossTenantAccessType}}."
+                                                }
+                   }
+}

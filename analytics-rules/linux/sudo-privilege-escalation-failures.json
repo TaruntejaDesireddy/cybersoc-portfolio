@@ -1,0 +1,51 @@
+﻿{
+    "name":  "c0de0055-0000-4000-8000-000000000055",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Linux - Sudo Privilege Escalation Failures",
+                       "description":  "DETECTS\nThree or more failed sudo attempts on a host, including authentication failures, incorrect passwords, and users not present in sudoers.\n\nWHY IT MATTERS\nAn attacker who lands on a Linux host as an unprivileged user must escalate to be useful. Probing sudo is the first thing they try, and the user NOT in sudoers message specifically indicates an account attempting privilege it was never granted, which is rarely accidental (MITRE T1548, Abuse Elevation Control Mechanism).\n\nTRIAGE\n1. Identify the account attempting sudo and whether it should have any elevated rights.\n2. Cross-reference with SSH activity on the same host to establish how the session began.\n3. Review what commands were attempted where the message records them.\n4. Check whether escalation eventually succeeded via sudo or another mechanism.\n5. If unexplained: treat the originating session as hostile and investigate the host.\n\nFALSE POSITIVES\nAdministrators mistyping passwords, and scripts invoking sudo without appropriate sudoers entries. Both are distinguishable by consistency of account and command.\n\nSOURCE\nSyslog",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "Syslog\n| where ProcessName =~ \"sudo\"\n| where SyslogMessage has_any (\"authentication failure\", \"incorrect password attempt\", \"user NOT in sudoers\", \"command not allowed\")\n| summarize AttemptCount = count(), Messages = make_set(SyslogMessage, 10),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Computer\n| where AttemptCount \u003e= 3\n| extend TimeGenerated = EndTime, HostName = Computer",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "PrivilegeEscalation"
+                                   ],
+                       "techniques":  [
+                                          "T1548"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Host"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "SampleMessages":  "Messages",
+                                             "AttemptCount":  "AttemptCount",
+                                             "TargetHost":  "Computer"
+                                         }
+                   }
+}

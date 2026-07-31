@@ -1,0 +1,45 @@
+﻿{
+    "name":  "c0de0059-0000-4000-8000-000000000059",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Ops - Log Ingestion Volume Drop by Data Type",
+                       "description":  "DETECTS\nAny billable data type whose ingestion over the last day fell to less than half its trailing seven-day average.\n\nWHY IT MATTERS\nCatches the failure mode the Heartbeat rule cannot: the agent is alive and reporting, but a specific log stream has stopped. A deleted data collection rule, a broken connector, or a disabled audit policy silently removes an entire category of visibility while every host still looks healthy (MITRE T1562, Impair Defenses). Most SOCs discover this only when an investigation turns up no data.\n\nTRIAGE\n1. Identify which data type dropped and which detections depend on it. Consult the SOURCE section of the other rules in this workspace.\n2. Determine whether a data connector, DCR, or diagnostic setting was recently changed. Correlate with the Sentinel configuration and diagnostic settings rules.\n3. Establish whether the drop is environmental, such as decommissioned hosts or a genuine reduction in activity.\n4. Check for a matching sampling or daily-cap event, which produces the same symptom for billing reasons.\n5. Restore the pipeline and treat the gap period as unmonitored for that data type.\n\nFALSE POSITIVES\nWeekend and holiday troughs in business activity, planned decommissioning, and deliberate ingestion tuning. The 50 percent threshold against a 7-day mean is deliberately coarse and will need adjustment for data types with strong weekly seasonality.\n\nSOURCE\nUsage",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "Usage\n| where IsBillable == true\n| summarize CurrentVolume = sumif(Quantity, TimeGenerated \u003e ago(1d)),\n            BaselineVolume = sumif(Quantity, TimeGenerated between (ago(8d) .. ago(1d))) / 7.0\n    by DataType\n| where BaselineVolume \u003e 10\n| where CurrentVolume \u003c (BaselineVolume * 0.5)\n| extend DropPercent = round((1.0 - (CurrentVolume / BaselineVolume)) * 100, 1)\n| project DataType, CurrentVolume = round(CurrentVolume, 2), BaselineVolume = round(BaselineVolume, 2), DropPercent",
+                       "queryFrequency":  "P1D",
+                       "queryPeriod":  "P8D",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1562"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "customDetails":  {
+                                             "DropPercent":  "DropPercent",
+                                             "DataType":  "DataType",
+                                             "BaselineVolume":  "BaselineVolume",
+                                             "CurrentVolume":  "CurrentVolume"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Ingestion for {{DataType}} dropped {{DropPercent}} percent",
+                                                    "alertDescriptionFormat":  "Data type {{DataType}} ingestion dropped {{DropPercent}} percent against its 7-day baseline of {{BaselineVolume}}."
+                                                }
+                   }
+}

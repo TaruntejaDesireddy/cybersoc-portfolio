@@ -1,0 +1,56 @@
+﻿{
+    "name":  "c0de0056-0000-4000-8000-000000000056",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Linux - User or Group Account Modified",
+                       "description":  "DETECTS\nExecution of useradd, groupadd, usermod, passwd, or chpasswd on a Linux host.\n\nWHY IT MATTERS\nCreating a local account is the most direct persistence mechanism on a compromised Linux host, surviving reboots and remaining available even if the original access vector is closed. Adding an existing user to a privileged group such as sudo, wheel, or docker achieves persistent escalation and is easily missed (MITRE T1136, Create Account).\n\nTRIAGE\n1. Determine which account was created or modified and whether it appears in your configuration management baseline.\n2. For usermod, establish which group was involved. The docker group is effectively root.\n3. Correlate with SSH sessions and sudo activity on the host in the same window.\n4. Confirm whether a change request or automated configuration run explains it.\n5. If unauthorized: remove the account, hunt for other persistence, and treat the host as compromised.\n\nFALSE POSITIVES\nConfiguration management tooling such as Ansible, Puppet, or cloud-init performing routine account management, and package installations that create service accounts.\n\nSOURCE\nSyslog",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "Syslog\n| where ProcessName has_any (\"useradd\", \"groupadd\", \"usermod\", \"passwd\", \"chpasswd\")\n| where SyslogMessage has_any (\"new user\", \"new group\", \"add\", \"changed\", \"password changed\")\n| project TimeGenerated, Computer, ProcessName, SyslogMessage, Facility, SeverityLevel\n| extend HostName = Computer",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Persistence"
+                                   ],
+                       "techniques":  [
+                                          "T1136"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Host"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Message":  "SyslogMessage",
+                                             "Facility":  "Facility",
+                                             "TargetHost":  "Computer",
+                                             "Process":  "ProcessName"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Account change on {{Computer}} via {{ProcessName}}",
+                                                    "alertDescriptionFormat":  "{{ProcessName}} executed on {{Computer}}: {{SyslogMessage}}"
+                                                }
+                   }
+}

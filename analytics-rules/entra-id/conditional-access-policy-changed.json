@@ -1,0 +1,56 @@
+﻿{
+    "name":  "c0de0045-0000-4000-8000-000000000045",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Entra - Conditional Access Policy Changed",
+                       "description":  "DETECTS\nCreation, modification, or deletion of a Conditional Access policy.\n\nWHY IT MATTERS\nConditional Access is the primary access control plane for Entra ID. Weakening a policy, adding an exclusion for a specific account, or disabling it outright removes MFA and device requirements at a stroke. Attackers commonly add themselves to an exclusion group rather than disabling the policy, since that is far less visible (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Determine exactly what changed. Pay particular attention to newly added user or group exclusions.\n2. Confirm the actor is an identity administrator and the change is part of approved work.\n3. Assess whether the change weakens MFA, device compliance, or location requirements.\n4. Check for sign-ins that benefited from the change immediately afterwards.\n5. If unauthorized: revert the policy and audit all authentications during the window it was weakened.\n\nFALSE POSITIVES\nLegitimate identity engineering and policy tuning. Should be correlated against change management rather than suppressed.\n\nSOURCE\nAuditLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AuditLogs\n| where OperationName has \"conditional access policy\"\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend PolicyName = tostring(TargetResources.displayName)\n| project TimeGenerated, Actor, PolicyName, OperationName, Result, CorrelationId\n| extend Account = Actor",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1562"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "Operation":  "OperationName",
+                                             "PolicyName":  "PolicyName",
+                                             "Correlation":  "CorrelationId"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Conditional Access policy {{PolicyName}} changed by {{Actor}}",
+                                                    "alertDescriptionFormat":  "{{Actor}} performed {{OperationName}} on Conditional Access policy {{PolicyName}}."
+                                                }
+                   }
+}

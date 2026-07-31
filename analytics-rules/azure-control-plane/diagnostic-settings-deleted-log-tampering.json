@@ -1,0 +1,65 @@
+﻿{
+    "name":  "c0de0005-0000-4000-8000-000000000005",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Diagnostic Settings Deleted (Log Tampering)",
+                       "description":  "DETECTS\nDeletion of a diagnostic setting, which is the pipe that ships resource logs into the Log Analytics workspace.\n\nWHY IT MATTERS\nDeleting this silently blinds the SOC to that resource without triggering any availability alarm. It is a deliberate anti-forensics move typically performed immediately before the real objective (MITRE T1562, Impair Defenses). Very few legitimate workflows remove diagnostic settings.\n\nTRIAGE\n1. Identify which resource lost logging and what data types it was sending.\n2. Confirm whether the Caller had any reason to alter monitoring configuration.\n3. Review all activity by that Caller in the following hours, since visibility is now reduced.\n4. Restore the diagnostic setting and confirm ingestion resumes.\n5. Treat any subsequent activity on that resource as under-logged during triage.\n\nFALSE POSITIVES\nResource decommissioning and monitoring reconfiguration projects.\n\nSOURCE\nAzureActivity",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.INSIGHTS/DIAGNOSTICSETTINGS\"\n| where OperationNameValue has \"DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1562"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Operation":  "OperationNameValue",
+                                             "Caller":  "Caller",
+                                             "AffectedResource":  "Resource",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Diagnostic settings deleted on {{Resource}} by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deleted diagnostic settings on {{Resource}}, stopping log flow to Sentinel."
+                                                }
+                   }
+}

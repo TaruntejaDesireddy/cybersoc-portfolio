@@ -1,0 +1,57 @@
+﻿{
+    "name":  "c0de0051-0000-4000-8000-000000000051",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Entra - Domain or Federation Settings Changed",
+                       "description":  "DETECTS\nChanges to domain authentication type, federation settings, or the addition and verification of a domain.\n\nWHY IT MATTERS\nThis is the Golden SAML and AADbackdoor territory. Converting a domain to federated authentication, or adding a rogue federation trust, lets an attacker mint tokens for any user in the tenant without ever knowing a password or triggering MFA. It is among the most severe and most persistent attacks available against Entra ID, and it is very rarely a routine change (MITRE T1484, Domain Policy Modification).\n\nTRIAGE\n1. Treat as critical until proven otherwise. Confirm the actor identity and authorisation immediately.\n2. Determine whether a domain moved between managed and federated authentication.\n3. If a federation trust was added or altered, inspect the issuer and signing certificate for anything unfamiliar.\n4. Verify against change management. Federation changes are major planned projects, never ad hoc.\n5. If unauthorized: remove the trust, revoke all refresh tokens tenant-wide, and treat the entire tenant as compromised.\n\nFALSE POSITIVES\nGenuine federation migration and domain onboarding projects. These are rare, planned, and easily confirmed.\n\nSOURCE\nAuditLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AuditLogs\n| where OperationName has_any (\"Set domain authentication\", \"Set federation settings on domain\", \"Add unverified domain\", \"Verify domain\", \"Add domain to company\")\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend DomainName = tostring(TargetResources.displayName)\n| project TimeGenerated, Actor, DomainName, OperationName, CorrelationId\n| extend Account = Actor",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Persistence",
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1484"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "Operation":  "OperationName",
+                                             "Domain":  "DomainName",
+                                             "Correlation":  "CorrelationId"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Domain or federation setting changed: {{DomainName}} by {{Actor}}",
+                                                    "alertDescriptionFormat":  "{{Actor}} performed {{OperationName}} affecting domain {{DomainName}}, which can alter how the tenant trusts authentication."
+                                                }
+                   }
+}

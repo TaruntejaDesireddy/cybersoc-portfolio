@@ -1,0 +1,57 @@
+﻿{
+    "name":  "c0de0050-0000-4000-8000-000000000050",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Entra - New Account Granted Role Within One Hour",
+                       "description":  "DETECTS\nAn account created and then assigned a directory role within sixty minutes, correlating two AuditLogs event types.\n\nWHY IT MATTERS\nThis sequence is the classic attacker persistence pattern: create an innocuous account, elevate it, then use it as a durable backdoor that survives remediation of the originally compromised identity. Legitimate provisioning almost always separates account creation from role assignment by an approval step, so the compressed timeline is itself the signal (MITRE T1136, Create Account).\n\nTRIAGE\n1. Identify the new account naming. Attackers often mimic service accounts or existing user patterns.\n2. Determine what role was granted and by whom.\n3. Confirm whether an onboarding request exists for this person.\n4. Check whether the new account has signed in, and from where.\n5. If unauthorized: disable the account immediately, then investigate the creating identity as compromised.\n\nFALSE POSITIVES\nAutomated provisioning pipelines that create and entitle accounts in one workflow, and admin-created service accounts. Tune by excluding the provisioning service principal.\n\nSOURCE\nAuditLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "let NewAccounts = AuditLogs\n    | where OperationName =~ \"Add user\" and Result =~ \"success\"\n    | mv-expand TargetResources\n    | extend NewUser = tostring(TargetResources.userPrincipalName)\n    | where isnotempty(NewUser)\n    | project NewUser, CreatedTime = TimeGenerated;\nAuditLogs\n| where OperationName =~ \"Add member to role\" and Result =~ \"success\"\n| mv-expand TargetResources\n| extend NewUser = tostring(TargetResources.userPrincipalName)\n| where isnotempty(NewUser)\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| join kind=inner (NewAccounts) on NewUser\n| where TimeGenerated \u003e CreatedTime\n| where datetime_diff(\"minute\", TimeGenerated, CreatedTime) \u003c= 60\n| project TimeGenerated, Actor, NewUser, CreatedTime, OperationName, CorrelationId\n| extend Account = NewUser",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "P1D",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "PrivilegeEscalation",
+                                       "Persistence"
+                                   ],
+                       "techniques":  [
+                                          "T1136"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "NewAccount":  "NewUser",
+                                             "Operation":  "OperationName",
+                                             "AccountCreated":  "CreatedTime"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "New account {{NewUser}} granted a role within an hour of creation",
+                                                    "alertDescriptionFormat":  "Account {{NewUser}} was created at {{CreatedTime}} and granted a directory role by {{Actor}} within the following hour."
+                                                }
+                   }
+}

@@ -1,0 +1,51 @@
+﻿{
+    "name":  "c0de0049-0000-4000-8000-000000000049",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Entra - Bulk User Deletion",
+                       "description":  "DETECTS\nA single actor deleting three or more user accounts within an hour.\n\nWHY IT MATTERS\nBulk account deletion denies access to legitimate users and is a recognised destructive and extortion tactic. It also serves to remove evidence, since deleting an account can complicate reconstruction of what that identity did (MITRE T1531, Account Access Removal). Deleting responder accounts specifically is a way to impede incident response.\n\nTRIAGE\n1. Review the deleted account list. Deletion of administrator or security team accounts is an emergency.\n2. Confirm whether a bulk offboarding or HR sync is running.\n3. Check whether deletions are ongoing, and if so contain the actor before completing triage.\n4. Restore accounts from the Entra ID soft-delete container, which retains them for 30 days.\n5. If unauthorized: disable the actor, revoke sessions, and treat as active destructive intrusion.\n\nFALSE POSITIVES\nScheduled offboarding batches, HR-driven identity lifecycle automation, and lab cleanup. Tune by excluding the sync service principal that performs automated lifecycle operations.\n\nSOURCE\nAuditLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AuditLogs\n| where OperationName =~ \"Delete user\"\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend DeletedUser = tostring(TargetResources.userPrincipalName)\n| summarize DeletedCount = dcount(DeletedUser), DeletedUsers = make_set(DeletedUser, 25),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Actor\n| where DeletedCount \u003e= 3\n| extend TimeGenerated = EndTime, Account = Actor",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Impact"
+                                   ],
+                       "techniques":  [
+                                          "T1531"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "DeletedCount":  "DeletedCount",
+                                             "DeletedUsers":  "DeletedUsers"
+                                         }
+                   }
+}

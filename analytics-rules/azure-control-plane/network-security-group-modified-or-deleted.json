@@ -1,0 +1,65 @@
+﻿{
+    "name":  "b1a1f002-0000-4000-8000-000000000002",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Network Security Group Modified or Deleted",
+                       "description":  "DETECTS\nSuccessful write or delete against a Network Security Group or its rules.\n\nWHY IT MATTERS\nNSGs are the primary network boundary in Azure. An attacker with control-plane access modifies them to open management ports (RDP 3389, SSH 22), enable exfiltration, or permit inbound C2. Deleting one removes the boundary entirely (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Determine what the new rule allows. Any source of 0.0.0.0/0 or Internet is critical.\n2. Confirm the Caller is authorized to change network controls.\n3. If a management port is now open to the internet, treat as High regardless of caller.\n4. Correlate the Caller across AzureActivity and SigninLogs to establish how access was obtained.\n5. If unauthorized: revert the rule, then investigate the identity.\n\nFALSE POSITIVES\nInfrastructure-as-code deployments and approved firewall change windows. Tune by excluding deployment service principals.\n\nSOURCE\nAzureActivity",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where ResourceProviderValue =~ \"MICROSOFT.NETWORK\"\n| where OperationNameValue has \"NETWORKSECURITYGROUPS\"\n| where OperationNameValue has_any (\"WRITE\", \"DELETE\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1562"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "TargetNSG":  "Resource",
+                                             "Caller":  "Caller",
+                                             "Operation":  "OperationNameValue",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "NSG {{Resource}} changed by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} on network security group {{Resource}}."
+                                                }
+                   }
+}

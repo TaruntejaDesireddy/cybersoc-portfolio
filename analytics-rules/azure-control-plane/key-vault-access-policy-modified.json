@@ -1,0 +1,65 @@
+﻿{
+    "name":  "c0de0003-0000-4000-8000-000000000003",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Key Vault Access Policy Modified",
+                       "description":  "DETECTS\nA successful write to a Key Vault access policy.\n\nWHY IT MATTERS\nKey Vault holds secrets, keys, and certificates. Granting an identity get/list permissions on secrets is the standard path to harvesting stored credentials without touching the secrets themselves in a detectable way (MITRE T1552, Unsecured Credentials). This is a classic privilege-escalation-to-credential-access pivot.\n\nTRIAGE\n1. Identify which principal was granted access and what permissions.\n2. Confirm the Caller is authorized to administer this vault.\n3. Check the vault diagnostic logs for secret retrieval immediately following the change.\n4. Determine whether the granted principal is a known application or an unfamiliar object.\n5. If unauthorized: revoke the policy, rotate every secret in the vault, and treat them as compromised.\n\nFALSE POSITIVES\nLegitimate application onboarding and IaC deployments that manage vault policy.\n\nSOURCE\nAzureActivity",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.KEYVAULT/VAULTS/ACCESSPOLICIES\"\n| where OperationNameValue has \"WRITE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "CredentialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1552"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "ResourceGroup":  "ResourceGroup",
+                                             "Caller":  "Caller",
+                                             "KeyVault":  "Resource",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Key Vault access policy changed on {{Resource}} by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} modified the access policy on Key Vault {{Resource}}, potentially granting themselves secret access."
+                                                }
+                   }
+}

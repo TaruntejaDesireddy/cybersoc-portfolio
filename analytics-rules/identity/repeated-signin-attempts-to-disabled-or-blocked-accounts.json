@@ -1,0 +1,53 @@
+﻿{
+    "name":  "c0de0040-0000-4000-8000-000000000040",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Repeated Sign-in Attempts to Disabled or Blocked Accounts",
+                       "description":  "DETECTS\nThree or more sign-in attempts from one IP against accounts that are disabled, blocked, or denied by policy.\n\nWHY IT MATTERS\nNothing legitimate repeatedly authenticates as a disabled account. This pattern indicates either an attacker working from a stale harvested credential list, or a former employee attempting to regain access after offboarding. It is also a reliable signal that a credential dump predates your last offboarding cycle (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Identify the accounts targeted and when they were disabled.\n2. If they are recently offboarded staff, consider whether the attempts originate from that individual.\n3. Check whether the same source IP also targeted active accounts, which broadens the scope considerably.\n4. Confirm no disabled account was re-enabled around the same time.\n5. Block the source and, if the account list looks like an old directory export, treat it as evidence of prior data exposure.\n\nFALSE POSITIVES\nCached credentials on a device belonging to a departed user continuing to retry automatically. These are distinguishable by a single account and a single consistent source.\n\nSOURCE\nSigninLogs",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| where ResultType in (\"50057\", \"53003\", \"50105\", \"700016\")\n| summarize BlockedAttempts = count(), Accounts = make_set(UserPrincipalName, 20), Reasons = make_set(ResultDescription, 10),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by IPAddress\n| where BlockedAttempts \u003e= 3\n| extend TimeGenerated = EndTime, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "InitialAccess",
+                                       "Persistence"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "BlockedAttempts":  "BlockedAttempts",
+                                             "SourceIP":  "IPAddress",
+                                             "Reasons":  "Reasons",
+                                             "Accounts":  "Accounts"
+                                         }
+                   }
+}

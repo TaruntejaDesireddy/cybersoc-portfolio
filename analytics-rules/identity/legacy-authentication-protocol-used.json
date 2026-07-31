@@ -1,0 +1,67 @@
+﻿{
+    "name":  "c0de0027-0000-4000-8000-000000000027",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Legacy Authentication Protocol Used",
+                       "description":  "DETECTS\nSuccessful authentication using a legacy protocol such as IMAP4, POP3, SMTP, MAPI, Exchange ActiveSync, or any client reported as Other clients.\n\nWHY IT MATTERS\nLegacy protocols do not support modern authentication and therefore cannot enforce MFA or most Conditional Access controls. Attackers deliberately select them to bypass MFA entirely using only a stolen password. Any successful legacy auth is effectively single-factor access (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Identify the application and determine whether a legitimate business system requires legacy auth.\n2. Check whether the same account also authenticates with modern auth, which suggests the legacy path is unnecessary.\n3. Review the source IP against expected locations. Legacy auth from an unexpected country is high risk.\n4. Confirm whether the account holds privileged roles.\n5. Remediate by blocking legacy authentication in Conditional Access, exempting only documented systems.\n\nFALSE POSITIVES\nGenuine legacy line-of-business applications, older multifunction printers and scanners sending mail, and unpatched mail clients. Each should be inventoried and exempted explicitly rather than tolerated broadly.\n\nSOURCE\nSigninLogs",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| where ResultType == \"0\"\n| where ClientAppUsed in (\"Other clients\", \"IMAP4\", \"POP3\", \"SMTP\", \"MAPI\", \"Exchange ActiveSync\", \"Authenticated SMTP\", \"Exchange Web Services\")\n| project TimeGenerated, UserPrincipalName, IPAddress, ClientAppUsed, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion",
+                                       "CredentialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Application":  "AppDisplayName",
+                                             "User":  "UserPrincipalName",
+                                             "LegacyClient":  "ClientAppUsed",
+                                             "Location":  "Location",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Legacy auth ({{ClientAppUsed}}) used by {{UserPrincipalName}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} authenticated successfully from {{IPAddress}} using legacy protocol {{ClientAppUsed}}, which cannot enforce MFA."
+                                                }
+                   }
+}

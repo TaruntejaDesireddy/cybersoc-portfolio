@@ -1,0 +1,67 @@
+﻿{
+    "name":  "c0de0024-0000-4000-8000-000000000024",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Successful Sign-in Following Brute Force",
+                       "description":  "DETECTS\nA successful sign-in from the same user and IP pair that previously produced ten or more failures in the same window.\n\nWHY IT MATTERS\nThis is the highest-fidelity credential attack signal available from sign-in data. Failures alone are background noise; failures followed by success from the identical source is a confirmed guess. Treat as compromise, not suspicion (MITRE T1110, Brute Force).\n\nTRIAGE\n1. Treat the account as compromised. Do not wait for further confirmation.\n2. Revoke all refresh tokens and force a password reset immediately.\n3. Enumerate everything the session did after the successful sign-in: AuditLogs, AzureActivity, mailbox rules.\n4. Check for persistence: newly registered MFA methods, added app credentials, new device joins.\n5. Block the source IP and confirm whether other accounts were targeted from it.\n\nFALSE POSITIVES\nRare by construction. The main benign case is a user repeatedly mistyping a password and then succeeding, which is distinguishable by the failure count being close to the threshold and originating from a known corporate IP.\n\nSOURCE\nSigninLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "let FailedPairs = SigninLogs\n    | where ResultType != \"0\"\n    | summarize Failures = count() by UserPrincipalName, IPAddress\n    | where Failures \u003e= 10;\nSigninLogs\n| where ResultType == \"0\"\n| join kind=inner (FailedPairs) on UserPrincipalName, IPAddress\n| project TimeGenerated, UserPrincipalName, IPAddress, Failures, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "CredentialAccess",
+                                       "InitialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1110"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "UserAgent":  "UserAgent",
+                                             "User":  "UserPrincipalName",
+                                             "Application":  "AppDisplayName",
+                                             "PriorFailures":  "Failures",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Brute force succeeded: {{UserPrincipalName}} from {{IPAddress}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} signed in successfully from {{IPAddress}} after {{Failures}} failed attempts from the same address. Treat as confirmed compromise."
+                                                }
+                   }
+}

@@ -1,0 +1,67 @@
+﻿{
+    "name":  "c0de0029-0000-4000-8000-000000000029",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Sign-in from Anonymous or Tor IP",
+                       "description":  "DETECTS\nSign-ins where Entra ID Protection flagged the source as an anonymizing proxy, a Tor exit node, or a known malicious IP.\n\nWHY IT MATTERS\nDeliberate source concealment. Ordinary users do not route corporate authentication through Tor. While commercial VPNs produce some legitimate anonymized traffic, the Tor and malicious IP categories have almost no benign explanation in an enterprise context (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Separate the risk types. torIP and maliciousIPAddress are far stronger signals than anonymizedIPAddress alone.\n2. Check whether the sign-in succeeded and what resource was accessed.\n3. Confirm the user does not routinely use a privacy VPN.\n4. Review what the session did afterwards across AuditLogs and AzureActivity.\n5. If unexplained: revoke sessions, reset credentials, and consider blocking anonymized access via Conditional Access.\n\nFALSE POSITIVES\nPrivacy-conscious users on commercial VPNs, and some mobile carriers whose egress is classified as anonymized. Tor specifically should be treated as malicious by default.\n\nSOURCE\nSigninLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| extend RiskTypes = tostring(RiskEventTypes)\n| where RiskTypes has_any (\"anonymizedIPAddress\", \"torIP\", \"maliciousIPAddress\")\n| project TimeGenerated, UserPrincipalName, IPAddress, RiskTypes, ResultType, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "InitialAccess",
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Outcome":  "ResultType",
+                                             "User":  "UserPrincipalName",
+                                             "Application":  "AppDisplayName",
+                                             "RiskEventTypes":  "RiskTypes",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Anonymized sign-in for {{UserPrincipalName}} from {{IPAddress}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} authenticated from {{IPAddress}}, flagged as anonymized or Tor infrastructure. Risk types: {{RiskTypes}}."
+                                                }
+                   }
+}

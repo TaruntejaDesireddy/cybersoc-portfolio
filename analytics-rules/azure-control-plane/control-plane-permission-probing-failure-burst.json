@@ -1,0 +1,62 @@
+﻿{
+    "name":  "c0de0013-0000-4000-8000-000000000013",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Control Plane Permission Probing (Failure Burst)",
+                       "description":  "DETECTS\nA single caller generating fifteen or more failed control-plane operations within an hour.\n\nWHY IT MATTERS\nAn attacker who obtains credentials rarely knows what those credentials can do. Systematically attempting operations and observing which are denied is how they map their effective permissions, and it leaves a distinctive trail of authorization failures (MITRE T1087, Account Discovery). This often precedes a successful privileged action.\n\nTRIAGE\n1. Review the failed operation list. Enumeration across many different resource providers is more suspicious than repeated failures against one.\n2. Determine whether any operation by the same Caller succeeded during or after the burst.\n3. Confirm whether the identity is a misconfigured application retrying, which produces repetitive identical failures rather than varied ones.\n4. Check the Caller sign-in history for signs the identity itself is compromised.\n5. If suspicious: restrict the identity and review what it can legitimately reach.\n\nFALSE POSITIVES\nMisconfigured automation and applications with insufficient permissions retrying in a loop. These show low operation diversity, so tune on dcount of operations rather than raw count.\n\nSOURCE\nAzureActivity",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where ActivityStatusValue in~ (\"Failure\", \"Failed\")\n| summarize FailureCount = count(), Operations = make_set(OperationNameValue, 20), Resources = make_set(Resource, 15),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Caller, CallerIpAddress\n| where FailureCount \u003e= 15\n| extend TimeGenerated = EndTime, Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Discovery"
+                                   ],
+                       "techniques":  [
+                                          "T1087"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "FailureCount":  "FailureCount",
+                                             "Caller":  "Caller",
+                                             "Operations":  "Operations",
+                                             "Resources":  "Resources",
+                                             "SourceIP":  "CallerIpAddress"
+                                         }
+                   }
+}

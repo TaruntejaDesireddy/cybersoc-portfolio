@@ -1,0 +1,57 @@
+﻿{
+    "name":  "c0de0042-0000-4000-8000-000000000042",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Entra - Global Administrator Role Assigned",
+                       "description":  "DETECTS\nAssignment of Global Administrator, Company Administrator, Privileged Role Administrator, or Privileged Authentication Administrator.\n\nWHY IT MATTERS\nThese roles confer total control of the tenant, including the ability to reset any password, modify Conditional Access, and grant themselves access to every subscription. Privileged Authentication Administrator specifically can reset credentials for other Global Admins, making it a route to full takeover that is often overlooked (MITRE T1098, Account Manipulation).\n\nTRIAGE\n1. Confirm the assignment is approved and documented. There should be very few holders of these roles.\n2. Verify the actor was themselves authorised to grant it.\n3. Check whether the target account is new, dormant, or a service account. Any of these is a serious concern.\n4. Review the target account activity immediately following the grant.\n5. If unauthorized: remove the role, revoke sessions for both actor and target, and treat as tenant-level compromise.\n\nFALSE POSITIVES\nLegitimate admin onboarding and approved PIM activations. In a healthy tenant this should fire rarely enough that every alert is investigated.\n\nSOURCE\nAuditLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AuditLogs\n| where OperationName =~ \"Add member to role\"\n| where Result =~ \"success\"\n| mv-expand TargetResources\n| extend TargetUser = tostring(TargetResources.userPrincipalName)\n| mv-expand ModProp = TargetResources.modifiedProperties\n| where tostring(ModProp.displayName) =~ \"Role.DisplayName\"\n| extend RoleName = tostring(parse_json(tostring(ModProp.newValue)))\n| where RoleName has_any (\"Global Administrator\", \"Company Administrator\", \"Privileged Role Administrator\", \"Privileged Authentication Administrator\")\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| project TimeGenerated, Actor, TargetUser, RoleName, OperationName, CorrelationId\n| extend Account = Actor",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "PrivilegeEscalation",
+                                       "Persistence"
+                                   ],
+                       "techniques":  [
+                                          "T1098"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "Correlation":  "CorrelationId",
+                                             "NewAdmin":  "TargetUser",
+                                             "Role":  "RoleName"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "{{TargetUser}} granted {{RoleName}} by {{Actor}}",
+                                                    "alertDescriptionFormat":  "{{Actor}} assigned the {{RoleName}} role to {{TargetUser}}, granting tenant-wide administrative control."
+                                                }
+                   }
+}

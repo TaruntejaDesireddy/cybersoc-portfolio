@@ -1,0 +1,66 @@
+﻿{
+    "name":  "c0de0054-0000-4000-8000-000000000054",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Linux - Successful SSH Login Following Brute Force",
+                       "description":  "DETECTS\nA successful SSH authentication from a source IP that produced ten or more failures against the same host in the window.\n\nWHY IT MATTERS\nConfirmed host compromise with interactive shell access, not a suspicion. The attacker now has a foothold on the Linux host and will typically move immediately to establish persistence and escalate (MITRE T1110, Brute Force).\n\nTRIAGE\n1. Treat the host as compromised. Identify which account was accessed.\n2. Isolate the host from the network before deeper investigation if the intrusion appears current.\n3. Review shell history, cron entries, systemd units, authorized_keys, and any new users on the host.\n4. Check for outbound connections from the host indicating C2 or data movement.\n5. Rotate every credential and key present on the host, and rebuild rather than clean where practical.\n\nFALSE POSITIVES\nVery rare. The main benign case is an administrator who mistyped a password many times before succeeding, distinguishable by an internal source IP and a failure count near the threshold.\n\nSOURCE\nSyslog",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "let BruteForceSources = Syslog\n    | where ProcessName =~ \"sshd\"\n    | where SyslogMessage has_any (\"Failed password\", \"Invalid user\", \"authentication failure\")\n    | extend SourceIP = extract(@\"from ([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\", 1, SyslogMessage)\n    | where isnotempty(SourceIP)\n    | summarize Failures = count() by Computer, SourceIP\n    | where Failures \u003e= 10;\nSyslog\n| where ProcessName =~ \"sshd\"\n| where SyslogMessage has \"Accepted\"\n| extend SourceIP = extract(@\"from ([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\", 1, SyslogMessage)\n| where isnotempty(SourceIP)\n| join kind=inner (BruteForceSources) on Computer, SourceIP\n| project TimeGenerated, Computer, SourceIP, Failures, SyslogMessage\n| extend IP = SourceIP, HostName = Computer",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "CredentialAccess",
+                                       "InitialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1110"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Host"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Message":  "SyslogMessage",
+                                             "SourceIP":  "SourceIP",
+                                             "TargetHost":  "Computer",
+                                             "PriorFailures":  "Failures"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "SSH brute force succeeded on {{Computer}} from {{SourceIP}}",
+                                                    "alertDescriptionFormat":  "Accepted SSH authentication on {{Computer}} from {{SourceIP}} after {{Failures}} prior failures from the same address."
+                                                }
+                   }
+}

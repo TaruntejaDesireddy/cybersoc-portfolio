@@ -1,0 +1,62 @@
+﻿{
+    "name":  "c0de0012-0000-4000-8000-000000000012",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Mass Resource Deletion Burst",
+                       "description":  "DETECTS\nA single caller successfully deleting ten or more Azure resources within one hour.\n\nWHY IT MATTERS\nVolume is the signal here. Individual deletions are routine; a burst is characteristic of destructive intent, whether ransomware-adjacent extortion, a disgruntled insider, or a runaway script (MITRE T1485, Data Destruction). Catching the pattern early can stop the deletion mid-sequence.\n\nTRIAGE\n1. Review the resource list to judge scope and business impact.\n2. Confirm whether a decommissioning project or teardown pipeline is running.\n3. Check whether deletions are still in progress. If so, contain the identity immediately rather than completing triage first.\n4. Correlate with a preceding role assignment to the same Caller, which would indicate escalate-then-destroy.\n5. If unauthorized: disable the account, revoke tokens, and begin recovery from IaC.\n\nFALSE POSITIVES\nEnvironment teardown, ephemeral CI/CD, and lab cleanup will trigger this. Tune by excluding pipeline service principals or raising the threshold.\n\nSOURCE\nAzureActivity",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where ActivityStatusValue =~ \"Success\"\n| where OperationNameValue endswith \"/DELETE\"\n| summarize DeleteCount = count(), TargetResources = make_set(Resource, 25), Operations = make_set(OperationNameValue, 15),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Caller, CallerIpAddress\n| where DeleteCount \u003e= 10\n| extend TimeGenerated = EndTime, Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Impact"
+                                   ],
+                       "techniques":  [
+                                          "T1485"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Resources":  "TargetResources",
+                                             "Caller":  "Caller",
+                                             "Operations":  "Operations",
+                                             "DeleteCount":  "DeleteCount",
+                                             "SourceIP":  "CallerIpAddress"
+                                         }
+                   }
+}

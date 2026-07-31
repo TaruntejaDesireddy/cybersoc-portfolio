@@ -1,0 +1,67 @@
+﻿{
+    "name":  "c0de0037-0000-4000-8000-000000000037",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Management Access from Non-Compliant Device",
+                       "description":  "DETECTS\nSuccessful access to Azure management applications from a device that is not reported as Intune-compliant.\n\nWHY IT MATTERS\nAdministrative access should originate from a managed, healthy, policy-enforced endpoint. Access from an unmanaged device means the workstation security posture is unknown, so credential theft, keylogging, or token extraction on that host would be invisible. This is also the expected footprint of an attacker using stolen credentials from their own machine.\n\nTRIAGE\n1. Determine whether the device is unmanaged, or managed but failing compliance. These are different problems.\n2. Confirm the user normally administers Azure from a compliant workstation, and whether this is a deviation.\n3. Check the device operating system and browser for plausibility against the user known equipment.\n4. Correlate with AzureActivity to see what was done in the session.\n5. Remediate by requiring compliant devices for management applications in Conditional Access.\n\nFALSE POSITIVES\nCommon wherever device compliance is not yet enforced, on personally owned devices, and on non-Windows platforms with partial Intune coverage. Where compliance reporting is immature this rule will be noisy until policy catches up.\n\nSOURCE\nSigninLogs",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| where ResultType == \"0\"\n| extend IsCompliant = tostring(DeviceDetail.isCompliant), IsManaged = tostring(DeviceDetail.isManaged),\n         DeviceOS = tostring(DeviceDetail.operatingSystem), DeviceName = tostring(DeviceDetail.displayName)\n| where IsCompliant != \"true\"\n| where AppDisplayName has_any (\"Azure Portal\", \"Windows Azure Service Management API\", \"Microsoft Azure CLI\", \"Microsoft Azure PowerShell\", \"Azure Resource Manager\")\n| project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, IsCompliant, IsManaged, DeviceOS, DeviceName, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Managed":  "IsManaged",
+                                             "ManagementApp":  "AppDisplayName",
+                                             "Compliant":  "IsCompliant",
+                                             "User":  "UserPrincipalName",
+                                             "SourceIP":  "IPAddress",
+                                             "DeviceOS":  "DeviceOS"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Non-compliant device used for {{AppDisplayName}} by {{UserPrincipalName}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} accessed {{AppDisplayName}} from a device reporting compliance state {{IsCompliant}}."
+                                                }
+                   }
+}

@@ -1,0 +1,52 @@
+﻿{
+    "name":  "c0de0023-0000-4000-8000-000000000023",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Brute Force Against Single Account",
+                       "description":  "DETECTS\nTen or more failed authentications against a single account within an hour, covering bad password, smart lockout, and expired credential result codes.\n\nWHY IT MATTERS\nSustained targeting of one account indicates the attacker has a specific objective, usually because that identity is known to be privileged or valuable (MITRE T1110, Brute Force). Distinct from spraying, which favours breadth over depth.\n\nTRIAGE\n1. Check whether a successful sign-in for the account followed the failures.\n2. Review the source IP spread. Many IPs suggests a distributed or proxied attack; one IP suggests a script or a broken client.\n3. Confirm the account privilege level to judge urgency.\n4. Verify MFA is enforced for the account. Without it, a correct password is sufficient.\n5. If targeting persists: reset the password, revoke sessions, and consider Conditional Access restrictions.\n\nFALSE POSITIVES\nA user with cached credentials on a phone or mail client after a password change will generate a rapid failure loop. Confirm by checking whether all failures share one IP and one application.\n\nSOURCE\nSigninLogs",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| where ResultType in (\"50126\", \"50053\", \"50055\", \"50056\")\n| summarize FailedAttempts = count(), SourceIPs = make_set(IPAddress, 15), Apps = make_set(AppDisplayName, 10),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by UserPrincipalName\n| where FailedAttempts \u003e= 10\n| extend TimeGenerated = EndTime, Account = UserPrincipalName",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "CredentialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1110"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "FailedAttempts":  "FailedAttempts",
+                                             "Applications":  "Apps",
+                                             "User":  "UserPrincipalName",
+                                             "SourceIPs":  "SourceIPs"
+                                         }
+                   }
+}

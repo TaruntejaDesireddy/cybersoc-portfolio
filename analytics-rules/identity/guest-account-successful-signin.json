@@ -1,0 +1,66 @@
+﻿{
+    "name":  "c0de0031-0000-4000-8000-000000000031",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Guest Account Successful Sign-in",
+                       "description":  "DETECTS\nA successful sign-in by an account whose UserType is Guest.\n\nWHY IT MATTERS\nGuest accounts are governed by another organisation security posture, not yours. You cannot enforce their password policy, MFA registration, or device compliance, yet they hold access to your resources. Guest identities are consequently a favoured supply-chain entry point (MITRE T1078, Valid Accounts). Low severity as a monitoring baseline; escalate on unexpected guest or resource.\n\nTRIAGE\n1. Confirm the guest is a known partner and the access is current and sponsored.\n2. Review what resource was accessed and whether it matches the intended collaboration scope.\n3. Check the source geography against the partner expected location.\n4. Verify the guest still requires access. Stale guests are a standing risk.\n5. If unrecognised: remove the guest and audit what it could reach.\n\nFALSE POSITIVES\nAll routine partner and contractor collaboration. In an environment with active B2B this rule is inventory rather than alerting. Consider scoping it to sensitive applications only.\n\nSOURCE\nSigninLogs",
+                       "severity":  "Low",
+                       "enabled":  true,
+                       "query":  "SigninLogs\n| where UserType =~ \"Guest\"\n| where ResultType == \"0\"\n| project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, UserType, CrossTenantAccessType, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "InitialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Location":  "Location",
+                                             "GuestUser":  "UserPrincipalName",
+                                             "Application":  "AppDisplayName",
+                                             "AccessType":  "CrossTenantAccessType",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Guest {{UserPrincipalName}} signed in from {{IPAddress}}",
+                                                    "alertDescriptionFormat":  "External guest account {{UserPrincipalName}} authenticated successfully from {{IPAddress}} to {{AppDisplayName}}."
+                                                }
+                   }
+}

@@ -1,0 +1,67 @@
+﻿{
+    "name":  "c0de0036-0000-4000-8000-000000000036",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Non-Interactive Sign-in from Threat Intelligence IP",
+                       "description":  "DETECTS\nA non-interactive sign-in, meaning a token refresh, originating from an IP matching an active threat intelligence indicator.\n\nWHY IT MATTERS\nCovers the blind spot left by interactive-only TI matching. An attacker who steals a refresh token never produces an interactive sign-in again, so a rule watching only SigninLogs goes quiet while the intrusion continues. This is the companion detection that keeps visibility on a stolen-token session (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Treat a match here as strongly indicative of token theft rather than password compromise.\n2. Identify the resource being accessed to understand what data the token reaches.\n3. Compare against the user interactive sign-in IPs. Divergence confirms the session is not the legitimate user.\n4. Revoke refresh tokens. A password reset alone does not invalidate an existing refresh token in all cases.\n5. Audit all activity by that account across AuditLogs and AzureActivity.\n\nFALSE POSITIVES\nSame considerations as the interactive TI rule: stale indicators and shared egress infrastructure. The non-interactive path is additionally noisy where service accounts route through commercial hosting.\n\nSOURCE\nAADNonInteractiveUserSignInLogs, ThreatIntelIndicators",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "let TIIps = ThreatIntelIndicators\n    | where ObservableKey == \"ipv4-addr:value\"\n    | where IsActive == true\n    | distinct ObservableValue;\nAADNonInteractiveUserSignInLogs\n| where IPAddress in (TIIps)\n| project TimeGenerated, UserPrincipalName, IPAddress, ResultType, AppDisplayName, ResourceDisplayName, UserAgent\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "P1D",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "InitialAccess",
+                                       "Persistence"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Outcome":  "ResultType",
+                                             "Resource":  "ResourceDisplayName",
+                                             "User":  "UserPrincipalName",
+                                             "Application":  "AppDisplayName",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Token refresh from malicious IP {{IPAddress}} for {{UserPrincipalName}}",
+                                                    "alertDescriptionFormat":  "Non-interactive sign-in for {{UserPrincipalName}} from {{IPAddress}}, matching an active threat intelligence indicator. Resource {{ResourceDisplayName}}."
+                                                }
+                   }
+}

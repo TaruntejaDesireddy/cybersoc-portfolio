@@ -1,0 +1,65 @@
+﻿{
+    "name":  "c0de0011-0000-4000-8000-000000000011",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Storage Account Deleted",
+                       "description":  "DETECTS\nDeletion of a storage account, which removes all contained blobs, files, queues, and tables.\n\nWHY IT MATTERS\nDirect data destruction, and a common final action in extortion scenarios after exfiltration (MITRE T1485, Data Destruction). Storage accounts frequently hold backups, so deletion may also be an attempt to prevent recovery.\n\nTRIAGE\n1. Identify what the account held and whether it was a backup or archive target.\n2. Confirm a decommission approval exists.\n3. Check for large read or download activity on the account shortly before deletion, which would indicate exfiltration first.\n4. Determine whether soft-delete or a recovery point is available.\n5. If unauthorized: begin recovery, contain the Caller, and treat the data as exfiltrated.\n\nFALSE POSITIVES\nLab cleanup and decommissioning projects.\n\nSOURCE\nAzureActivity",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.STORAGE/STORAGEACCOUNTS/DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Impact"
+                                   ],
+                       "techniques":  [
+                                          "T1485"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "ResourceGroup":  "ResourceGroup",
+                                             "StorageAccount":  "Resource",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Storage account {{Resource}} deleted by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deleted storage account {{Resource}} and all data it contained."
+                                                }
+                   }
+}

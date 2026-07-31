@@ -1,0 +1,67 @@
+﻿{
+    "name":  "c0de0035-0000-4000-8000-000000000035",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Azure Management Plane Access from New IP",
+                       "description":  "DETECTS\nSuccessful authentication to Azure Portal, ARM, Azure CLI, or Azure PowerShell from an IP not previously used for management access in 14 days.\n\nWHY IT MATTERS\nDeliberately narrower than general sign-in anomaly detection. Access to the management plane is what allows an attacker to alter infrastructure, escalate via RBAC, and disable logging. Scoping the anomaly to management applications only raises severity while cutting noise, since these apps have a much smaller and more stable legitimate IP set than mail or Teams.\n\nTRIAGE\n1. Confirm the user routinely performs Azure administration.\n2. Geolocate the IP and check whether it belongs to a hosting or VPN provider, which is unusual for admin access.\n3. Immediately review AzureActivity for that Caller in the same window. This rule pairs directly with the control-plane rules.\n4. Verify with the user out of band.\n5. If unexplained: revoke sessions and audit every control-plane action taken from that session.\n\nFALSE POSITIVES\nAdmins working from a new location, a changed VPN egress, or a newly provisioned jump host. Expect noise in the first 14 days while the baseline builds.\n\nSOURCE\nSigninLogs",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "let KnownMgmtIps = SigninLogs\n    | where TimeGenerated between (ago(14d) .. ago(1d))\n    | where ResultType == \"0\"\n    | where AppDisplayName has_any (\"Azure Portal\", \"Windows Azure Service Management API\", \"Microsoft Azure CLI\", \"Microsoft Azure PowerShell\", \"Azure Resource Manager\")\n    | distinct IPAddress;\nSigninLogs\n| where TimeGenerated \u003e ago(1h)\n| where ResultType == \"0\"\n| where AppDisplayName has_any (\"Azure Portal\", \"Windows Azure Service Management API\", \"Microsoft Azure CLI\", \"Microsoft Azure PowerShell\", \"Azure Resource Manager\")\n| where IPAddress !in (KnownMgmtIps)\n| project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "P14D",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "InitialAccess",
+                                       "PrivilegeEscalation"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "UserAgent":  "UserAgent",
+                                             "User":  "UserPrincipalName",
+                                             "ManagementApp":  "AppDisplayName",
+                                             "Location":  "Location",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Azure management access from new IP {{IPAddress}} by {{UserPrincipalName}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} accessed {{AppDisplayName}} from {{IPAddress}}, an address not seen for Azure management access in the previous 14 days."
+                                                }
+                   }
+}

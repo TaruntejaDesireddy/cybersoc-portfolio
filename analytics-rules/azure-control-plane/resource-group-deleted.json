@@ -1,0 +1,65 @@
+﻿{
+    "name":  "b1a1f001-0000-4000-8000-000000000001",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Resource Group Deleted",
+                       "description":  "DETECTS\nA successful resource group delete in the Azure control plane. This destroys every resource inside the group in one action.\n\nWHY IT MATTERS\nHighest blast-radius operation in Azure. Used to destroy infrastructure and eliminate evidence, potentially including the workspace collecting these logs (MITRE T1485, Data Destruction). Equally often an admin mistake causing unplanned outage.\n\nTRIAGE\n1. Confirm the Caller is a legitimate admin or approved automation principal.\n2. Check CallerIpAddress against known corporate or VPN egress ranges.\n3. Verify an approved change request exists.\n4. Pivot on the same Caller in AzureActivity for the prior 24h for enumeration or further destruction.\n5. If unauthorized: disable the account, revoke refresh tokens, recover from IaC or backup.\n\nFALSE POSITIVES\nPlanned teardown and ephemeral CI/CD environments. Tune by excluding known automation principals.\n\nSOURCE\nAzureActivity",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.RESOURCES/SUBSCRIPTIONS/RESOURCEGROUPS/DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, ResourceGroup, SubscriptionId, CorrelationId\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Impact"
+                                   ],
+                       "techniques":  [
+                                          "T1485"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Subscription":  "SubscriptionId",
+                                             "DeletedResourceGroup":  "ResourceGroup",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Resource group {{ResourceGroup}} deleted by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} successfully deleted resource group {{ResourceGroup}}, destroying every resource it contained."
+                                                }
+                   }
+}

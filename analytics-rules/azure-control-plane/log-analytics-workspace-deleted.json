@@ -1,0 +1,66 @@
+﻿{
+    "name":  "c0de0016-0000-4000-8000-000000000016",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Azure - Log Analytics Workspace Deleted",
+                       "description":  "DETECTS\nDeletion of a Log Analytics workspace.\n\nWHY IT MATTERS\nDestroys all retained security telemetry and, if the workspace backs Sentinel, the SIEM itself. This is the most complete anti-forensics action available in Azure (MITRE T1485, Data Destruction). Note the inherent limitation: if the deleted workspace is the one running this rule, the alert may not survive.\n\nTRIAGE\n1. Confirm which workspace was deleted and whether it was Sentinel-enabled.\n2. Check whether it is within the soft-delete recovery window and recover immediately if so.\n3. Identify what data sources were feeding it and re-point them.\n4. Confirm the Caller and whether a decommission approval exists.\n5. If unauthorized: assume evidence destruction and escalate. Rely on Entra ID and Azure Activity logs retained outside the workspace.\n\nFALSE POSITIVES\nWorkspace consolidation and lab cleanup.\n\nSOURCE\nAzureActivity",
+                       "severity":  "High",
+                       "enabled":  true,
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.OPERATIONALINSIGHTS/WORKSPACES\"\n| where OperationNameValue has \"DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup\n| extend Account = Caller, IP = CallerIpAddress",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "DefenseEvasion",
+                                       "Impact"
+                                   ],
+                       "techniques":  [
+                                          "T1485"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              },
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "IP"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Workspace":  "Resource",
+                                             "Caller":  "Caller",
+                                             "ResourceGroup":  "ResourceGroup",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Log Analytics workspace {{Resource}} deleted by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deleted Log Analytics workspace {{Resource}}, destroying retained security telemetry."
+                                                }
+                   }
+}

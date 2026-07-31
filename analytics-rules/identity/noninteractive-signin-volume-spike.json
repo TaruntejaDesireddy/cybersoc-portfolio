@@ -1,0 +1,53 @@
+﻿{
+    "name":  "c0de0032-0000-4000-8000-000000000032",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Identity - Non-Interactive Sign-in Volume Spike",
+                       "description":  "DETECTS\nAn account generating 200 or more successful non-interactive sign-ins within an hour.\n\nWHY IT MATTERS\nNon-interactive sign-ins are token refreshes performed by clients without user involvement. A stolen refresh token produces a high volume of these while generating no interactive sign-in and no MFA prompt, making it a blind spot for detections that only watch SigninLogs. Bulk data access via Graph also surfaces here (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Identify the applications consuming the tokens. Graph or Exchange at high volume suggests data collection.\n2. Compare source IPs against the user interactive sign-in locations. A mismatch is a strong token-theft signal.\n3. Establish the account normal non-interactive baseline before judging the volume as anomalous.\n4. Check whether the volume coincides with a legitimate sync or migration.\n5. If token theft is suspected: revoke refresh tokens, which is the only action that reliably kills the session.\n\nFALSE POSITIVES\nMail clients, Teams, OneDrive sync, and any service account driving an integration will legitimately produce high counts. The 200 threshold needs tuning to your environment; start by measuring the current p95.\n\nSOURCE\nAADNonInteractiveUserSignInLogs",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "AADNonInteractiveUserSignInLogs\n| where ResultType == \"0\"\n| summarize TokenCount = count(), Apps = make_set(AppDisplayName, 10), SourceIPs = make_set(IPAddress, 10),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by UserPrincipalName\n| where TokenCount \u003e= 200\n| extend TimeGenerated = EndTime, Account = UserPrincipalName",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "Persistence",
+                                       "Collection"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "SourceIPs":  "SourceIPs",
+                                             "User":  "UserPrincipalName",
+                                             "Applications":  "Apps",
+                                             "TokenCount":  "TokenCount"
+                                         }
+                   }
+}

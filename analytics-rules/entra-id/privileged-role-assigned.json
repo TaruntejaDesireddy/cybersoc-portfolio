@@ -1,0 +1,57 @@
+﻿{
+    "name":  "c0de0043-0000-4000-8000-000000000043",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "displayName":  "Entra - Privileged Role Assigned",
+                       "description":  "DETECTS\nAssignment of any administrative directory role other than the tenant-wide roles handled by the Global Administrator rule.\n\nWHY IT MATTERS\nCovers the broad middle tier of Entra privilege: Exchange, SharePoint, Security, User, Application, and Intune administrators. Attackers frequently prefer these over Global Administrator precisely because they attract less scrutiny while still enabling mail access, credential resets, or application manipulation (MITRE T1098, Account Manipulation).\n\nTRIAGE\n1. Identify the specific role and what it permits. Application Administrator and User Administrator are routes to further escalation.\n2. Confirm an access request exists and the actor is authorised to grant it.\n3. Check whether the target already held other roles that combine into greater effective privilege.\n4. Review whether the role was used shortly after assignment.\n5. If unauthorized: remove and investigate both accounts.\n\nFALSE POSITIVES\nNormal IT access provisioning. Volume depends on organisation size, so consider restricting the role list to those most abused in your environment.\n\nSOURCE\nAuditLogs",
+                       "severity":  "Medium",
+                       "enabled":  true,
+                       "query":  "AuditLogs\n| where OperationName =~ \"Add member to role\"\n| where Result =~ \"success\"\n| mv-expand TargetResources\n| extend TargetUser = tostring(TargetResources.userPrincipalName)\n| mv-expand ModProp = TargetResources.modifiedProperties\n| where tostring(ModProp.displayName) =~ \"Role.DisplayName\"\n| extend RoleName = tostring(parse_json(tostring(ModProp.newValue)))\n| where RoleName has_any (\"Administrator\", \"Admin\", \"Operator\", \"Writer\")\n| where not(RoleName has_any (\"Global Administrator\", \"Company Administrator\", \"Privileged Role Administrator\"))\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| project TimeGenerated, Actor, TargetUser, RoleName, OperationName, CorrelationId\n| extend Account = Actor",
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "PrivilegeEscalation",
+                                       "Persistence"
+                                   ],
+                       "techniques":  [
+                                          "T1098"
+                                      ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  false,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "PT5H",
+                                                                                   "matchingMethod":  "AllEntities"
+                                                                               }
+                                                 },
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ],
+                                                  "entityType":  "Account"
+                                              }
+                                          ],
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "TargetUser":  "TargetUser",
+                                             "Correlation":  "CorrelationId",
+                                             "Role":  "RoleName"
+                                         },
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "{{TargetUser}} granted role {{RoleName}} by {{Actor}}",
+                                                    "alertDescriptionFormat":  "{{Actor}} assigned the {{RoleName}} directory role to {{TargetUser}}."
+                                                }
+                   }
+}
