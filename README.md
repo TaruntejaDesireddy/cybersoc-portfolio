@@ -10,14 +10,21 @@ Personal Microsoft Sentinel SOC lab — deployed and configured end-to-end from 
 
 ## Analytics Rules (`/analytics-rules`)
 
-4 scheduled rules enabled, chosen to match the connectors actually deployed (not a generic template dump):
+60 custom-authored scheduled rules — no gallery templates. Every rule was written against a table confirmed to be ingesting in this workspace, because a rule that cannot fire is worse than no rule: it creates the appearance of coverage.
 
-| Rule | Severity | MITRE ATT&CK | Data source |
-|---|---|---|---|
-| TI Map IP Entity to AzureActivity | Medium | Command and Control — T1071 | Threat Intelligence + Azure Activity |
-| Failed logon attempts in authpriv | Medium | Credential Access — T1110 | Syslog |
-| Authentication Attempt from New Country | Medium | Initial Access — T1078 | Entra ID sign-in logs |
-| Suspicious resource creation/deployment | Medium | Impact — T1496 | Azure Activity |
+| Category | Rules | Data source |
+|---|---:|---|
+| Azure control plane | 20 | AzureActivity |
+| Identity and authentication | 20 | SigninLogs, AADNonInteractiveUserSignInLogs |
+| Entra ID directory | 12 | AuditLogs |
+| Linux endpoint | 5 | Syslog |
+| Detection health and correlation | 3 | Heartbeat, Usage, AzureActivity |
+
+30 High, 25 Medium, 5 Low. Entity mappings on 59 of 60, custom details on all 60, and dynamic alert titles on 44 so incident names carry the actual user, IP, or resource rather than a static string.
+
+Each rule description documents its own detection logic, MITRE mapping, numbered triage steps, known false positives with the specific tuning lever, and source table — so triage does not depend on tribal knowledge.
+
+See [`analytics-rules/README.md`](analytics-rules/README.md) for the full index and the three rules that need environment-specific tuning before production use.
 
 ## Playbooks (`/playbooks`)
 
@@ -39,4 +46,10 @@ az deployment group create --resource-group <rg> --template-file playbooks/la-em
 
 After deployment, grant each playbook's Managed Identity `Microsoft Sentinel Contributor` on your workspace, and (for containment) the Graph app roles above.
 
-Analytics rule KQL is in `/analytics-rules` with MITRE mapping headers — deploy via the Sentinel portal, `az rest` against `Microsoft.SecurityInsights/alertRules`, or as ARM/Bicep.
+Analytics rules deploy from their JSON definitions:
+
+```
+./deploy-rules.ps1 -SubscriptionId <sub> -ResourceGroup <rg> -WorkspaceName <workspace>
+```
+
+Add `-WhatIf` to preview without writing. Each rule carries a fixed GUID, so the script is idempotent — re-running updates in place rather than creating duplicates.
