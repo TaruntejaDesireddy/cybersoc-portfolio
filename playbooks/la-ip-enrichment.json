@@ -1,0 +1,125 @@
+﻿{
+    "$schema":  "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions":  {
+                    "Compose_Summary":  {
+                                            "inputs":  "VirusTotal enrichment for @{triggerBody()?[\u0027IPAddress\u0027]}: malicious=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027last_analysis_stats\u0027]?[\u0027malicious\u0027]}, suspicious=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027last_analysis_stats\u0027]?[\u0027suspicious\u0027]}, harmless=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027last_analysis_stats\u0027]?[\u0027harmless\u0027]}, country=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027country\u0027]}, owner=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027as_owner\u0027]}",
+                                            "runAfter":  {
+                                                             "Parse_VT_Response":  [
+                                                                                       "Succeeded"
+                                                                                   ]
+                                                         },
+                                            "type":  "Compose"
+                                        },
+                    "HTTP_Post_Sentinel_Comment":  {
+                                                       "inputs":  {
+                                                                      "authentication":  {
+                                                                                             "type":  "ManagedServiceIdentity"
+                                                                                         },
+                                                                      "body":  {
+                                                                                   "properties":  {
+                                                                                                      "message":  "@outputs(\u0027Compose_Summary\u0027)"
+                                                                                                  }
+                                                                               },
+                                                                      "method":  "PUT",
+                                                                      "uri":  "https://management.azure.com@{triggerBody()?[\u0027IncidentArmId\u0027]}/comments/@{guid()}?api-version=2024-01-01-preview"
+                                                                  },
+                                                       "runAfter":  {
+                                                                        "Compose_Summary":  [
+                                                                                                "Succeeded"
+                                                                                            ]
+                                                                    },
+                                                       "type":  "Http"
+                                                   },
+                    "HTTP_VirusTotal_Lookup":  {
+                                                   "inputs":  {
+                                                                  "headers":  {
+                                                                                  "x-apikey":  "@parameters(\u0027VirusTotalApiKey\u0027)"
+                                                                              },
+                                                                  "method":  "GET",
+                                                                  "uri":  "https://www.virustotal.com/api/v3/ip_addresses/@{triggerBody()?[\u0027IPAddress\u0027]}"
+                                                              },
+                                                   "runAfter":  {
+
+                                                                },
+                                                   "type":  "Http"
+                                               },
+                    "Parse_VT_Response":  {
+                                              "inputs":  {
+                                                             "content":  "@body(\u0027HTTP_VirusTotal_Lookup\u0027)",
+                                                             "schema":  {
+                                                                            "properties":  {
+                                                                                               "data":  {
+                                                                                                            "properties":  {
+                                                                                                                               "attributes":  {
+                                                                                                                                                  "properties":  {
+                                                                                                                                                                     "as_owner":  {
+                                                                                                                                                                                      "type":  "string"
+                                                                                                                                                                                  },
+                                                                                                                                                                     "country":  {
+                                                                                                                                                                                     "type":  "string"
+                                                                                                                                                                                 },
+                                                                                                                                                                     "last_analysis_stats":  {
+                                                                                                                                                                                                 "properties":  {
+                                                                                                                                                                                                                    "harmless":  {
+                                                                                                                                                                                                                                     "type":  "integer"
+                                                                                                                                                                                                                                 },
+                                                                                                                                                                                                                    "malicious":  {
+                                                                                                                                                                                                                                      "type":  "integer"
+                                                                                                                                                                                                                                  },
+                                                                                                                                                                                                                    "suspicious":  {
+                                                                                                                                                                                                                                       "type":  "integer"
+                                                                                                                                                                                                                                   },
+                                                                                                                                                                                                                    "undetected":  {
+                                                                                                                                                                                                                                       "type":  "integer"
+                                                                                                                                                                                                                                   }
+                                                                                                                                                                                                                },
+                                                                                                                                                                                                 "type":  "object"
+                                                                                                                                                                                             }
+                                                                                                                                                                 },
+                                                                                                                                                  "type":  "object"
+                                                                                                                                              }
+                                                                                                                           },
+                                                                                                            "type":  "object"
+                                                                                                        }
+                                                                                           },
+                                                                            "type":  "object"
+                                                                        }
+                                                         },
+                                              "runAfter":  {
+                                                               "HTTP_VirusTotal_Lookup":  [
+                                                                                              "Succeeded"
+                                                                                          ]
+                                                           },
+                                              "type":  "ParseJson"
+                                          }
+                },
+    "contentVersion":  "1.0.0.0",
+    "parameters":  {
+                       "VirusTotalApiKey":  {
+                                                "type":  "SecureString"
+                                            }
+                   },
+    "triggers":  {
+                     "manual":  {
+                                    "inputs":  {
+                                                   "schema":  {
+                                                                  "properties":  {
+                                                                                     "IPAddress":  {
+                                                                                                       "type":  "string"
+                                                                                                   },
+                                                                                     "IncidentArmId":  {
+                                                                                                           "type":  "string"
+                                                                                                       }
+                                                                                 },
+                                                                  "required":  [
+                                                                                   "IncidentArmId",
+                                                                                   "IPAddress"
+                                                                               ],
+                                                                  "type":  "object"
+                                                              }
+                                               },
+                                    "kind":  "Http",
+                                    "type":  "Request"
+                                }
+                 }
+}
