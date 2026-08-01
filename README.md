@@ -28,27 +28,41 @@ See [`analytics-rules/README.md`](analytics-rules/README.md) for the full index 
 
 ## Playbooks (`/playbooks`)
 
-Logic App workflow definitions, exported as ARM templates. Secrets (API keys) are parameterized — supply your own value at deployment time, never committed. All three authenticate via system-assigned Managed Identity — no stored Azure credentials in any workflow.
+Logic App workflow definitions, exported as ARM templates. Secrets (API keys) live in Azure Key Vault and are read at runtime via the playbook's system-assigned Managed Identity — never passed as deployment parameters, never stored in the workflow itself.
 
-| Playbook | Trigger | Purpose |
-|---|---|---|
-| `la-ip-enrichment.json` | HTTP (called from Sentinel incident) | Looks up an incident IP via VirusTotal, posts enrichment (malicious/suspicious/harmless counts, ASN owner, country) as an incident comment |
-| `la-user-containment.json` | HTTP (called from Sentinel incident) | On High-severity incidents, disables the associated Entra ID user account via Microsoft Graph, then comments on the incident. Managed Identity scoped to `User.EnableDisableAccount.All` + `User.Read.All` only — no standing `User.ReadWrite.All` |
-| `la-email-alert.json` | HTTP (called from Sentinel incident) | Sends a formatted incident alert email via Azure Communication Services Email (Azure-native, no third-party mail provider), then comments on the incident |
+| Playbook | Trigger | Purpose | Status |
+|---|---|---|---|
+| `la-ip-enrichment.json` | HTTP (called from Sentinel incident) | Multi-source IP enrichment — queries both VirusTotal and AlienVault OTX in parallel, posts a combined summary (engine detection counts, threat-pulse count, reputation, ASN) as an incident comment. Each source degrades independently: if one is rate-limited or errors, the comment still posts with the other source's data rather than failing outright. | Live |
+| `la-user-containment.json` | HTTP (called from Sentinel incident) | On High-severity incidents, posts an incident comment recommending the associated account be disabled. Does **not** disable the account itself. | Live |
+| `la-email-alert.json` | HTTP (called from Sentinel incident) | Sends a formatted incident alert email via Azure Communication Services Email, then comments on the incident | Reference implementation — not currently deployed |
+
+### Why the containment playbook recommends rather than acts
+
+The first version of this playbook disabled the Entra ID account directly via `PATCH /users/{id}` over Microsoft Graph. That requires the `User.ReadWrite.All` application permission: unattended, tenant-wide, and capable of modifying *any* user, not just the one named in the incident. A single false-positive High-severity incident — not a rare event in an under-tuned environment — would silently lock out a real user with no human in the loop.
+
+The playbook now posts a clear, actionable recommendation and stops. A human approves the actual containment action. This trades a small amount of automation for removing a standing, broad-scope Graph grant from an unattended identity — the kind of tradeoff a mature SOC makes deliberately rather than defaulting to "automate everything."
 
 ## Deploying
 
-```
-az deployment group create --resource-group <rg> --template-file playbooks/la-ip-enrichment.json --parameters VirusTotalApiKey=<your-key>
+Prerequisite: an Azure Key Vault holding secrets `VirusTotalApiKey` and `OTXApiKey`, with `Key Vault Secrets User` granted to whichever principal will run `la-ip-enrichment`.
+
+```bash
+az deployment group create --resource-group <rg> --template-file playbooks/la-ip-enrichment.json --parameters KeyVaultName=<your-vault-name>
 az deployment group create --resource-group <rg> --template-file playbooks/la-user-containment.json
 az deployment group create --resource-group <rg> --template-file playbooks/la-email-alert.json
 ```
 
-After deployment, grant each playbook's Managed Identity `Microsoft Sentinel Contributor` on your workspace, and (for containment) the Graph app roles above.
+After deployment:
+
+1. Enable each Logic App's system-assigned managed identity
+2. Grant `la-ip-enrichment`'s identity `Key Vault Secrets User` on your vault
+3. Grant every playbook's identity `Microsoft Sentinel Contributor` on your workspace (needed to post incident comments)
+
+No Graph permissions are required by any playbook in this repo.
 
 Analytics rules deploy from their JSON definitions:
 
-```
+```bash
 ./deploy-rules.ps1 -SubscriptionId <sub> -ResourceGroup <rg> -WorkspaceName <workspace>
 ```
 

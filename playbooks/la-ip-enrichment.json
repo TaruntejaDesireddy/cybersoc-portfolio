@@ -1,125 +1,145 @@
-﻿{
-    "$schema":  "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-    "actions":  {
-                    "Compose_Summary":  {
-                                            "inputs":  "VirusTotal enrichment for @{triggerBody()?[\u0027IPAddress\u0027]}: malicious=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027last_analysis_stats\u0027]?[\u0027malicious\u0027]}, suspicious=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027last_analysis_stats\u0027]?[\u0027suspicious\u0027]}, harmless=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027last_analysis_stats\u0027]?[\u0027harmless\u0027]}, country=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027country\u0027]}, owner=@{body(\u0027Parse_VT_Response\u0027)?[\u0027data\u0027]?[\u0027attributes\u0027]?[\u0027as_owner\u0027]}",
-                                            "runAfter":  {
-                                                             "Parse_VT_Response":  [
-                                                                                       "Succeeded"
-                                                                                   ]
-                                                         },
-                                            "type":  "Compose"
-                                        },
-                    "HTTP_Post_Sentinel_Comment":  {
-                                                       "inputs":  {
-                                                                      "authentication":  {
-                                                                                             "type":  "ManagedServiceIdentity"
-                                                                                         },
-                                                                      "body":  {
-                                                                                   "properties":  {
-                                                                                                      "message":  "@outputs(\u0027Compose_Summary\u0027)"
-                                                                                                  }
-                                                                               },
-                                                                      "method":  "PUT",
-                                                                      "uri":  "https://management.azure.com@{triggerBody()?[\u0027IncidentArmId\u0027]}/comments/@{guid()}?api-version=2024-01-01-preview"
-                                                                  },
-                                                       "runAfter":  {
-                                                                        "Compose_Summary":  [
-                                                                                                "Succeeded"
-                                                                                            ]
-                                                                    },
-                                                       "type":  "Http"
-                                                   },
-                    "HTTP_VirusTotal_Lookup":  {
-                                                   "inputs":  {
-                                                                  "headers":  {
-                                                                                  "x-apikey":  "@parameters(\u0027VirusTotalApiKey\u0027)"
-                                                                              },
-                                                                  "method":  "GET",
-                                                                  "uri":  "https://www.virustotal.com/api/v3/ip_addresses/@{triggerBody()?[\u0027IPAddress\u0027]}"
-                                                              },
-                                                   "runAfter":  {
-
-                                                                },
-                                                   "type":  "Http"
-                                               },
-                    "Parse_VT_Response":  {
-                                              "inputs":  {
-                                                             "content":  "@body(\u0027HTTP_VirusTotal_Lookup\u0027)",
-                                                             "schema":  {
-                                                                            "properties":  {
-                                                                                               "data":  {
-                                                                                                            "properties":  {
-                                                                                                                               "attributes":  {
-                                                                                                                                                  "properties":  {
-                                                                                                                                                                     "as_owner":  {
-                                                                                                                                                                                      "type":  "string"
-                                                                                                                                                                                  },
-                                                                                                                                                                     "country":  {
-                                                                                                                                                                                     "type":  "string"
-                                                                                                                                                                                 },
-                                                                                                                                                                     "last_analysis_stats":  {
-                                                                                                                                                                                                 "properties":  {
-                                                                                                                                                                                                                    "harmless":  {
-                                                                                                                                                                                                                                     "type":  "integer"
-                                                                                                                                                                                                                                 },
-                                                                                                                                                                                                                    "malicious":  {
-                                                                                                                                                                                                                                      "type":  "integer"
-                                                                                                                                                                                                                                  },
-                                                                                                                                                                                                                    "suspicious":  {
-                                                                                                                                                                                                                                       "type":  "integer"
-                                                                                                                                                                                                                                   },
-                                                                                                                                                                                                                    "undetected":  {
-                                                                                                                                                                                                                                       "type":  "integer"
-                                                                                                                                                                                                                                   }
-                                                                                                                                                                                                                },
-                                                                                                                                                                                                 "type":  "object"
-                                                                                                                                                                                             }
-                                                                                                                                                                 },
-                                                                                                                                                  "type":  "object"
-                                                                                                                                              }
-                                                                                                                           },
-                                                                                                            "type":  "object"
-                                                                                                        }
-                                                                                           },
-                                                                            "type":  "object"
-                                                                        }
-                                                         },
-                                              "runAfter":  {
-                                                               "HTTP_VirusTotal_Lookup":  [
-                                                                                              "Succeeded"
-                                                                                          ]
-                                                           },
-                                              "type":  "ParseJson"
-                                          }
-                },
-    "contentVersion":  "1.0.0.0",
-    "parameters":  {
-                       "VirusTotalApiKey":  {
-                                                "type":  "SecureString"
-                                            }
-                   },
-    "triggers":  {
-                     "manual":  {
-                                    "inputs":  {
-                                                   "schema":  {
-                                                                  "properties":  {
-                                                                                     "IPAddress":  {
-                                                                                                       "type":  "string"
-                                                                                                   },
-                                                                                     "IncidentArmId":  {
-                                                                                                           "type":  "string"
-                                                                                                       }
-                                                                                 },
-                                                                  "required":  [
-                                                                                   "IncidentArmId",
-                                                                                   "IPAddress"
-                                                                               ],
-                                                                  "type":  "object"
-                                                              }
-                                               },
-                                    "kind":  "Http",
-                                    "type":  "Request"
-                                }
-                 }
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "KeyVaultName": {
+      "type": "String",
+      "metadata": { "description": "Name of the Key Vault holding VirusTotalApiKey and OTXApiKey secrets. The playbook's managed identity needs Key Vault Secrets User on this vault." }
+    }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "IncidentArmId": { "type": "string" },
+            "IPAddress": { "type": "string" }
+          },
+          "required": ["IncidentArmId", "IPAddress"]
+        }
+      }
+    }
+  },
+  "actions": {
+    "Get_VT_Key_From_KeyVault": {
+      "type": "Http",
+      "runAfter": {},
+      "inputs": {
+        "method": "GET",
+        "uri": "https://@{parameters('KeyVaultName')}.vault.azure.net/secrets/VirusTotalApiKey?api-version=7.4",
+        "authentication": { "type": "ManagedServiceIdentity", "audience": "https://vault.azure.net" }
+      }
+    },
+    "Get_OTX_Key_From_KeyVault": {
+      "type": "Http",
+      "runAfter": {},
+      "inputs": {
+        "method": "GET",
+        "uri": "https://@{parameters('KeyVaultName')}.vault.azure.net/secrets/OTXApiKey?api-version=7.4",
+        "authentication": { "type": "ManagedServiceIdentity", "audience": "https://vault.azure.net" }
+      }
+    },
+    "HTTP_VirusTotal_Lookup": {
+      "type": "Http",
+      "runAfter": { "Get_VT_Key_From_KeyVault": ["Succeeded"] },
+      "inputs": {
+        "method": "GET",
+        "uri": "https://www.virustotal.com/api/v3/ip_addresses/@{triggerBody()?['IPAddress']}",
+        "headers": { "x-apikey": "@{body('Get_VT_Key_From_KeyVault')?['value']}" }
+      }
+    },
+    "HTTP_OTX_Lookup": {
+      "type": "Http",
+      "runAfter": { "Get_OTX_Key_From_KeyVault": ["Succeeded"] },
+      "inputs": {
+        "method": "GET",
+        "uri": "https://otx.alienvault.com/api/v1/indicators/IPv4/@{triggerBody()?['IPAddress']}/general",
+        "headers": { "X-OTX-API-KEY": "@{body('Get_OTX_Key_From_KeyVault')?['value']}" }
+      }
+    },
+    "Parse_VT_Response": {
+      "type": "ParseJson",
+      "runAfter": { "HTTP_VirusTotal_Lookup": ["Succeeded"] },
+      "inputs": {
+        "content": "@body('HTTP_VirusTotal_Lookup')",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "attributes": {
+                  "type": "object",
+                  "properties": {
+                    "last_analysis_stats": {
+                      "type": "object",
+                      "properties": {
+                        "malicious": { "type": "integer" },
+                        "suspicious": { "type": "integer" },
+                        "harmless": { "type": "integer" },
+                        "undetected": { "type": "integer" }
+                      }
+                    },
+                    "country": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Parse_OTX_Response": {
+      "type": "ParseJson",
+      "runAfter": { "HTTP_OTX_Lookup": ["Succeeded"] },
+      "inputs": {
+        "content": "@body('HTTP_OTX_Lookup')",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "reputation": { "type": "integer" },
+            "country_name": { "type": "string" },
+            "asn": { "type": "string" },
+            "pulse_info": {
+              "type": "object",
+              "properties": { "count": { "type": "integer" } }
+            }
+          }
+        }
+      }
+    },
+    "Compose_VT_Summary": {
+      "type": "Compose",
+      "runAfter": { "Parse_VT_Response": ["Succeeded", "Skipped", "Failed"] },
+      "inputs": "@if(equals(actions('Parse_VT_Response')?['status'], 'Succeeded'), concat('VirusTotal: malicious=', string(body('Parse_VT_Response')?['data']?['attributes']?['last_analysis_stats']?['malicious']), ', suspicious=', string(body('Parse_VT_Response')?['data']?['attributes']?['last_analysis_stats']?['suspicious']), ', harmless=', string(body('Parse_VT_Response')?['data']?['attributes']?['last_analysis_stats']?['harmless']), ', country=', string(body('Parse_VT_Response')?['data']?['attributes']?['country'])), 'VirusTotal: unavailable (rate limited or error)')"
+    },
+    "Compose_OTX_Summary": {
+      "type": "Compose",
+      "runAfter": { "Parse_OTX_Response": ["Succeeded", "Skipped", "Failed"] },
+      "inputs": "@if(equals(actions('Parse_OTX_Response')?['status'], 'Succeeded'), concat('AlienVault OTX: pulses=', string(body('Parse_OTX_Response')?['pulse_info']?['count']), ', reputation=', string(body('Parse_OTX_Response')?['reputation']), ', country=', string(body('Parse_OTX_Response')?['country_name']), ', ASN=', string(body('Parse_OTX_Response')?['asn'])), 'AlienVault OTX: unavailable (error)')"
+    },
+    "Compose_Final_Summary": {
+      "type": "Compose",
+      "runAfter": {
+        "Compose_VT_Summary": ["Succeeded"],
+        "Compose_OTX_Summary": ["Succeeded"]
+      },
+      "inputs": "Multi-source IP enrichment for @{triggerBody()?['IPAddress']}. @{outputs('Compose_VT_Summary')} | @{outputs('Compose_OTX_Summary')}"
+    },
+    "HTTP_Post_Sentinel_Comment": {
+      "type": "Http",
+      "runAfter": { "Compose_Final_Summary": ["Succeeded"] },
+      "inputs": {
+        "method": "PUT",
+        "uri": "https://management.azure.com@{triggerBody()?['IncidentArmId']}/comments/@{guid()}?api-version=2024-01-01-preview",
+        "authentication": { "type": "ManagedServiceIdentity" },
+        "body": {
+          "properties": { "message": "@outputs('Compose_Final_Summary')" }
+        }
+      }
+    }
+  }
 }

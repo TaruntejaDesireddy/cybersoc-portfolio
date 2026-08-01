@@ -1,113 +1,67 @@
-﻿{
-    "$schema":  "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-    "actions":  {
-                    "Condition_High_Severity":  {
-                                                    "actions":  {
-                                                                    "HTTP_Disable_Entra_Account":  {
-                                                                                                       "inputs":  {
-                                                                                                                      "authentication":  {
-                                                                                                                                             "audience":  "https://graph.microsoft.com",
-                                                                                                                                             "type":  "ManagedServiceIdentity"
-                                                                                                                                         },
-                                                                                                                      "body":  {
-                                                                                                                                   "accountEnabled":  false
-                                                                                                                               },
-                                                                                                                      "method":  "PATCH",
-                                                                                                                      "uri":  "https://graph.microsoft.com/v1.0/users/@{triggerBody()?[\u0027UserObjectId\u0027]}"
-                                                                                                                  },
-                                                                                                       "runAfter":  {
-
-                                                                                                                    },
-                                                                                                       "type":  "Http"
-                                                                                                   },
-                                                                    "HTTP_Post_Sentinel_Comment":  {
-                                                                                                       "inputs":  {
-                                                                                                                      "authentication":  {
-                                                                                                                                             "type":  "ManagedServiceIdentity"
-                                                                                                                                         },
-                                                                                                                      "body":  {
-                                                                                                                                   "properties":  {
-                                                                                                                                                      "message":  "Automated containment: user account @{triggerBody()?[\u0027UserObjectId\u0027]} was disabled due to High severity incident."
-                                                                                                                                                  }
-                                                                                                                               },
-                                                                                                                      "method":  "PUT",
-                                                                                                                      "uri":  "https://management.azure.com@{triggerBody()?[\u0027IncidentArmId\u0027]}/comments/@{guid()}?api-version=2024-01-01-preview"
-                                                                                                                  },
-                                                                                                       "runAfter":  {
-                                                                                                                        "HTTP_Disable_Entra_Account":  [
-                                                                                                                                                           "Succeeded"
-                                                                                                                                                       ]
-                                                                                                                    },
-                                                                                                       "type":  "Http"
-                                                                                                   }
-                                                                },
-                                                    "else":  {
-                                                                 "actions":  {
-                                                                                 "HTTP_Post_Sentinel_Comment_Skipped":  {
-                                                                                                                            "inputs":  {
-                                                                                                                                           "authentication":  {
-                                                                                                                                                                  "type":  "ManagedServiceIdentity"
-                                                                                                                                                              },
-                                                                                                                                           "body":  {
-                                                                                                                                                        "properties":  {
-                                                                                                                                                                           "message":  "Containment playbook triggered but severity was not High � no account action taken."
-                                                                                                                                                                       }
-                                                                                                                                                    },
-                                                                                                                                           "method":  "PUT",
-                                                                                                                                           "uri":  "https://management.azure.com@{triggerBody()?[\u0027IncidentArmId\u0027]}/comments/@{guid()}?api-version=2024-01-01-preview"
-                                                                                                                                       },
-                                                                                                                            "runAfter":  {
-
-                                                                                                                                         },
-                                                                                                                            "type":  "Http"
-                                                                                                                        }
-                                                                             }
-                                                             },
-                                                    "expression":  {
-                                                                       "and":  [
-                                                                                   {
-                                                                                       "equals":  [
-                                                                                                      "@triggerBody()?[\u0027Severity\u0027]",
-                                                                                                      "High"
-                                                                                                  ]
-                                                                                   }
-                                                                               ]
-                                                                   },
-                                                    "runAfter":  {
-
-                                                                 },
-                                                    "type":  "If"
-                                                }
-                },
-    "contentVersion":  "1.0.0.0",
-    "parameters":  {
-
-                   },
-    "triggers":  {
-                     "manual":  {
-                                    "inputs":  {
-                                                   "schema":  {
-                                                                  "properties":  {
-                                                                                     "IncidentArmId":  {
-                                                                                                           "type":  "string"
-                                                                                                       },
-                                                                                     "Severity":  {
-                                                                                                      "type":  "string"
-                                                                                                  },
-                                                                                     "UserObjectId":  {
-                                                                                                          "type":  "string"
-                                                                                                      }
-                                                                                 },
-                                                                  "required":  [
-                                                                                   "IncidentArmId",
-                                                                                   "UserObjectId",
-                                                                                   "Severity"
-                                                                               ],
-                                                                  "type":  "object"
-                                                              }
-                                               },
-                                    "kind":  "Http",
-                                    "type":  "Request"
-                                }
-                 }
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "IncidentArmId": { "type": "string" },
+            "UserObjectId": { "type": "string" },
+            "Severity": { "type": "string" }
+          },
+          "required": ["IncidentArmId", "UserObjectId", "Severity"]
+        }
+      }
+    }
+  },
+  "actions": {
+    "Condition_High_Severity": {
+      "type": "If",
+      "expression": {
+        "and": [
+          { "equals": ["@triggerBody()?['Severity']", "High"] }
+        ]
+      },
+      "runAfter": {},
+      "actions": {
+        "HTTP_Post_Sentinel_Comment_Recommend": {
+          "type": "Http",
+          "runAfter": {},
+          "inputs": {
+            "method": "PUT",
+            "uri": "https://management.azure.com@{triggerBody()?['IncidentArmId']}/comments/@{guid()}?api-version=2024-01-01-preview",
+            "authentication": { "type": "ManagedServiceIdentity" },
+            "body": {
+              "properties": {
+                "message": "HIGH SEVERITY: Recommend disabling user account @{triggerBody()?['UserObjectId']}. Automatic account disablement is intentionally not enabled in this environment — requires manual review and action by a SOC analyst."
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "actions": {
+          "HTTP_Post_Sentinel_Comment_Skipped": {
+            "type": "Http",
+            "runAfter": {},
+            "inputs": {
+              "method": "PUT",
+              "uri": "https://management.azure.com@{triggerBody()?['IncidentArmId']}/comments/@{guid()}?api-version=2024-01-01-preview",
+              "authentication": { "type": "ManagedServiceIdentity" },
+              "body": {
+                "properties": {
+                  "message": "Containment playbook triggered but severity was not High — no action recommended."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
