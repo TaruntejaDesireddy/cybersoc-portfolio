@@ -1,0 +1,32 @@
+{
+    "name":  "a1c7f3e2-5b84-4d61-9e07-3f2a8c6b1d40",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "queryFrequency":  "PT12H",
+                       "queryPeriod":  "P14D",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "AnyAlert",
+                                                                                   "groupByEntities":  null,
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "severity":  "Medium",
+                       "query":  "ThreatIntelIndicators | where SourceSystem == \"AbuseIPDB\" | summarize LastIngest = max(TimeGenerated), IndicatorCount = count() | extend HoursSinceRefresh = round(todouble(datetime_diff(\"minute\", now(), LastIngest)) / 60.0, 1) | where HoursSinceRefresh \u003e 36 | extend TimeGenerated = now() | project TimeGenerated, LastIngest, HoursSinceRefresh, IndicatorCount",
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  null,
+                       "techniques":  null,
+                       "displayName":  "Health - Threat Intel Feed Stale (AbuseIPDB)",
+                       "enabled":  true,
+                       "description":  "The AbuseIPDB indicator feed has not refreshed in over 36 hours. Two TI-matching rules join SigninLogs and AADNonInteractiveUserSignInLogs against ThreatIntelIndicators, so a stalled feed means those detections are silently running against expiring indicators. Outcome-based on purpose: it fires whether the cause is a failed playbook run, a revoked Key Vault secret, an exhausted AbuseIPDB quota, or a missing role assignment. LIMITATION: queryPeriod caps at 14 days, so if the feed dies for longer than that the summarize returns no rows and this rule goes quiet - treat prolonged silence from it as suspicious rather than healthy.",
+                       "alertRuleTemplateName":  null
+                   }
+}

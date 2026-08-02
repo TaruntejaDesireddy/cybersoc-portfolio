@@ -1,16 +1,57 @@
-﻿{
+{
     "name":  "c0de0060-0000-4000-8000-000000000060",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Correlation - Privilege Escalation Followed by Resource Deletion",
-                       "description":  "DETECTS\nA caller who created an RBAC role assignment and then deleted Azure resources within the following two hours, correlating two AzureActivity event types on the caller identity.\n\nWHY IT MATTERS\nNeither half is remarkable alone. Role assignments happen constantly and resources are deleted routinely. The sequence, by the same identity, in a compressed window, is the signature of escalate-then-destroy: an attacker granting themselves the rights they need and immediately using them. Correlation rules like this are what separate a tuned SIEM from an alert firehose, because the composite has far higher fidelity than either component.\n\nTRIAGE\n1. Establish what role was granted and to whom, then what was deleted.\n2. Determine whether the caller granted privilege to themselves, which is the strongest indicator.\n3. Check whether deletion is still in progress and contain the identity immediately if so.\n4. Review the caller sign-in history for the session origin. Pair with the Azure management plane rules.\n5. If unauthorized: disable the account, revoke tokens, remove the role assignment, and begin recovery.\n\nFALSE POSITIVES\nA deployment pipeline that assigns permissions and tears down ephemeral infrastructure in the same run will match this pattern exactly. Excluding known deployment service principals is effectively mandatory before this rule is usable in a CI/CD-heavy environment.\n\nSOURCE\nAzureActivity",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "let Elevations = AzureActivity\n    | where OperationNameValue =~ \"MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE\"\n    | where ActivityStatusValue =~ \"Success\"\n    | project Caller, ElevationTime = TimeGenerated;\nAzureActivity\n| where ActivityStatusValue =~ \"Success\"\n| where OperationNameValue endswith \"/DELETE\"\n| join kind=inner (Elevations) on Caller\n| where TimeGenerated \u003e ElevationTime\n| where datetime_diff(\"minute\", TimeGenerated, ElevationTime) \u003c= 120\n| summarize DeleteCount = count(), DeletedResources = make_set(Resource, 20),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated), FirstElevation = min(ElevationTime)\n    by Caller, CallerIpAddress\n| extend TimeGenerated = EndTime, Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "P1D",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "ElevationTime":  "FirstElevation",
+                                             "DeletedResources":  "DeletedResources",
+                                             "Caller":  "Caller",
+                                             "DeleteCount":  "DeleteCount",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "severity":  "High",
+                       "query":  "let Elevations = AzureActivity\n    | where OperationNameValue =~ \"MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE\"\n    | where ActivityStatusValue =~ \"Success\"\n    | project Caller, ElevationTime = TimeGenerated;\nAzureActivity\n| where ActivityStatusValue =~ \"Success\"\n| where OperationNameValue endswith \"/DELETE\"\n| join kind=inner (Elevations) on Caller\n| where TimeGenerated \u003e ElevationTime\n| where datetime_diff(\"minute\", TimeGenerated, ElevationTime) \u003c= 120\n| summarize DeleteCount = count(), DeletedResources = make_set(Resource, 20),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated), FirstElevation = min(ElevationTime)\n    by Caller, CallerIpAddress\n| extend TimeGenerated = EndTime, Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,44 +61,9 @@
                        "techniques":  [
                                           "T1098"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "SingleAlert"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "ElevationTime":  "FirstElevation",
-                                             "DeletedResources":  "DeletedResources",
-                                             "Caller":  "Caller",
-                                             "DeleteCount":  "DeleteCount",
-                                             "SourceIP":  "CallerIpAddress"
-                                         }
+                       "displayName":  "Correlation - Privilege Escalation Followed by Resource Deletion",
+                       "enabled":  true,
+                       "description":  "DETECTS\nA caller who created an RBAC role assignment and then deleted Azure resources within the following two hours, correlating two AzureActivity event types on the caller identity.\n\nWHY IT MATTERS\nNeither half is remarkable alone. Role assignments happen constantly and resources are deleted routinely. The sequence, by the same identity, in a compressed window, is the signature of escalate-then-destroy: an attacker granting themselves the rights they need and immediately using them. Correlation rules like this are what separate a tuned SIEM from an alert firehose, because the composite has far higher fidelity than either component.\n\nTRIAGE\n1. Establish what role was granted and to whom, then what was deleted.\n2. Determine whether the caller granted privilege to themselves, which is the strongest indicator.\n3. Check whether deletion is still in progress and contain the identity immediately if so.\n4. Review the caller sign-in history for the session origin. Pair with the Azure management plane rules.\n5. If unauthorized: disable the account, revoke tokens, remove the role assignment, and begin recovery.\n\nFALSE POSITIVES\nA deployment pipeline that assigns permissions and tears down ephemeral infrastructure in the same run will match this pattern exactly. Excluding known deployment service principals is effectively mandatory before this rule is usable in a CI/CD-heavy environment.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

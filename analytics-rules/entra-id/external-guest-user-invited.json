@@ -1,16 +1,51 @@
-﻿{
+{
     "name":  "c0de0048-0000-4000-8000-000000000048",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Entra - External Guest User Invited",
-                       "description":  "DETECTS\nInvitation or redemption of an external guest account.\n\nWHY IT MATTERS\nGuest invitation is a quiet persistence mechanism. An attacker who invites an account they control gains an identity in your tenant that is not subject to your password policy and is often excluded from Conditional Access scoping by oversight. Guest accounts also tend to escape offboarding reviews aimed at employees (MITRE T1136, Create Account).\n\nTRIAGE\n1. Verify the invited domain is a known business partner rather than a consumer or disposable mail domain.\n2. Confirm the inviting user is authorised to bring in external collaborators.\n3. Check what resources or groups the guest was subsequently added to.\n4. Establish an expiry or review date for the access.\n5. If unauthorized: remove the guest and audit anything it accessed.\n\nFALSE POSITIVES\nRoutine partner and contractor collaboration in any organisation using B2B. Low severity by design; value is in periodic review of who was invited by whom.\n\nSOURCE\nAuditLogs",
-                       "severity":  "Low",
-                       "enabled":  true,
-                       "query":  "AuditLogs\n| where OperationName has_any (\"Invite external user\", \"Add external user\", \"Redeem external user invite\")\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend InvitedUser = tostring(TargetResources.userPrincipalName)\n| project TimeGenerated, Actor, InvitedUser, OperationName, CorrelationId\n| extend Account = Actor",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "Operation":  "OperationName",
+                                             "InvitedUser":  "InvitedUser",
+                                             "Correlation":  "CorrelationId"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Guest {{InvitedUser}} invited by {{Actor}}",
+                                                    "alertDescriptionFormat":  "{{Actor}} invited external user {{InvitedUser}} into the tenant via {{OperationName}}."
+                                                },
+                       "severity":  "Low",
+                       "query":  "AuditLogs\n| where OperationName has_any (\"Invite external user\", \"Add external user\", \"Redeem external user invite\")\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend InvitedUser = tostring(TargetResources.userPrincipalName)\n| project TimeGenerated, Actor, InvitedUser, OperationName, CorrelationId\n| extend Account = Actor",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,38 +55,9 @@
                        "techniques":  [
                                           "T1136"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Actor":  "Actor",
-                                             "Operation":  "OperationName",
-                                             "InvitedUser":  "InvitedUser",
-                                             "Correlation":  "CorrelationId"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Guest {{InvitedUser}} invited by {{Actor}}",
-                                                    "alertDescriptionFormat":  "{{Actor}} invited external user {{InvitedUser}} into the tenant via {{OperationName}}."
-                                                }
+                       "displayName":  "Entra - External Guest User Invited",
+                       "enabled":  true,
+                       "description":  "DETECTS\nInvitation or redemption of an external guest account.\n\nWHY IT MATTERS\nGuest invitation is a quiet persistence mechanism. An attacker who invites an account they control gains an identity in your tenant that is not subject to your password policy and is often excluded from Conditional Access scoping by oversight. Guest accounts also tend to escape offboarding reviews aimed at employees (MITRE T1136, Create Account).\n\nTRIAGE\n1. Verify the invited domain is a known business partner rather than a consumer or disposable mail domain.\n2. Confirm the inviting user is authorised to bring in external collaborators.\n3. Check what resources or groups the guest was subsequently added to.\n4. Establish an expiry or review date for the access.\n5. If unauthorized: remove the guest and audit anything it accessed.\n\nFALSE POSITIVES\nRoutine partner and contractor collaboration in any organisation using B2B. Low severity by design; value is in periodic review of who was invited by whom.\n\nSOURCE\nAuditLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

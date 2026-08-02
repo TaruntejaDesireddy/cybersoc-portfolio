@@ -1,16 +1,69 @@
-﻿{
+{
     "name":  "c0de0008-0000-4000-8000-000000000008",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - VM Run Command Executed",
-                       "description":  "DETECTS\nUse of the Azure Run Command feature to execute a script on a virtual machine via the control plane.\n\nWHY IT MATTERS\nRun Command executes arbitrary code as SYSTEM (Windows) or root (Linux) without needing RDP, SSH, or any network path to the VM. It is the cleanest control-plane-to-data-plane pivot in Azure and bypasses network controls entirely (MITRE T1059, Command and Scripting Interpreter).\n\nTRIAGE\n1. Retrieve the script content from the operation Properties field. This is the single most important artifact.\n2. Confirm the Caller is authorized to run commands on this host.\n3. Check the target VM for follow-on activity: new processes, accounts, or outbound connections.\n4. Correlate with the VM guest logs at the same timestamp.\n5. If unauthorized: isolate the VM and treat it as compromised at the highest privilege level.\n\nFALSE POSITIVES\nLegitimate administration and automated remediation tooling. Tune by excluding known automation principals.\n\nSOURCE\nAzureActivity",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.COMPUTE/VIRTUALMACHINES/RUNCOMMAND\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress, HostName = Resource",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Operation":  "OperationNameValue",
+                                             "TargetVM":  "Resource",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "Host",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Run Command executed on VM {{Resource}} by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} executed a Run Command against virtual machine {{Resource}}, running arbitrary code as SYSTEM or root."
+                                                },
+                       "severity":  "High",
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.COMPUTE/VIRTUALMACHINES/RUNCOMMAND\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress, HostName = Resource",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,56 +72,9 @@
                        "techniques":  [
                                           "T1059"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "HostName",
-                                                                            "columnName":  "HostName"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Host"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Operation":  "OperationNameValue",
-                                             "TargetVM":  "Resource",
-                                             "Caller":  "Caller",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Run Command executed on VM {{Resource}} by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} executed a Run Command against virtual machine {{Resource}}, running arbitrary code as SYSTEM or root."
-                                                }
+                       "displayName":  "Azure - VM Run Command Executed",
+                       "enabled":  true,
+                       "description":  "DETECTS\nUse of the Azure Run Command feature to execute a script on a virtual machine via the control plane.\n\nWHY IT MATTERS\nRun Command executes arbitrary code as SYSTEM (Windows) or root (Linux) without needing RDP, SSH, or any network path to the VM. It is the cleanest control-plane-to-data-plane pivot in Azure and bypasses network controls entirely (MITRE T1059, Command and Scripting Interpreter).\n\nTRIAGE\n1. Retrieve the script content from the operation Properties field. This is the single most important artifact.\n2. Confirm the Caller is authorized to run commands on this host.\n3. Check the target VM for follow-on activity: new processes, accounts, or outbound connections.\n4. Correlate with the VM guest logs at the same timestamp.\n5. If unauthorized: isolate the VM and treat it as compromised at the highest privilege level.\n\nFALSE POSITIVES\nLegitimate administration and automated remediation tooling. Tune by excluding known automation principals.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

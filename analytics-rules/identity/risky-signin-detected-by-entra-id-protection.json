@@ -1,56 +1,28 @@
-﻿{
+{
     "name":  "c0de0028-0000-4000-8000-000000000028",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Identity - Risky Sign-in Detected by Entra ID Protection",
-                       "description":  "DETECTS\nSign-ins that Entra ID Protection scored medium or high risk at the time of authentication.\n\nWHY IT MATTERS\nSurfaces Microsoft own machine-learning risk signal into the SIEM so it can be correlated with everything else, rather than sitting in a separate portal. The underlying detections include leaked credentials, anonymous IP, unfamiliar sign-in properties, and malicious IP reputation (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Read RiskDetail and RiskEventTypes to learn why Microsoft scored it risky. The reason drives the response.\n2. Check ResultType. Risky and successful is materially worse than risky and blocked.\n3. Confirm whether the risk was auto-remediated by a risk-based Conditional Access policy.\n4. Correlate with the user other activity in AuditLogs and AzureActivity for the same window.\n5. If unremediated and successful: revoke sessions and force password reset.\n\nFALSE POSITIVES\nUnfamiliar-location scoring for travelling users and VPN adoption. Risk state of dismissed or remediated indicates prior analyst or automated judgement.\n\nSOURCE\nSigninLogs",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "SigninLogs\n| where RiskLevelDuringSignIn in~ (\"high\", \"medium\")\n| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevelDuringSignIn, RiskState, RiskDetail, ResultType, AppDisplayName, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
-                       "suppressionDuration":  "PT5H",
-                       "suppressionEnabled":  false,
-                       "tactics":  [
-                                       "InitialAccess"
-                                   ],
-                       "techniques":  [
-                                          "T1078"
-                                      ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
                        "eventGroupingSettings":  {
                                                      "aggregationKind":  "AlertPerResult"
                                                  },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
                        "customDetails":  {
                                              "Application":  "AppDisplayName",
                                              "RiskState":  "RiskState",
@@ -59,9 +31,43 @@
                                              "User":  "UserPrincipalName",
                                              "SourceIP":  "IPAddress"
                                          },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
                        "alertDetailsOverride":  {
                                                     "alertDisplayNameFormat":  "{{RiskLevelDuringSignIn}} risk sign-in for {{UserPrincipalName}} from {{IPAddress}}",
                                                     "alertDescriptionFormat":  "Entra ID Protection scored this sign-in as {{RiskLevelDuringSignIn}} risk for {{UserPrincipalName}} from {{IPAddress}}."
-                                                }
+                                                },
+                       "severity":  "High",
+                       "query":  "SigninLogs\n| where RiskLevelDuringSignIn in~ (\"high\", \"medium\")\n| project TimeGenerated, UserPrincipalName, IPAddress, RiskLevelDuringSignIn, RiskState, RiskDetail, ResultType, AppDisplayName, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  [
+                                       "InitialAccess"
+                                   ],
+                       "techniques":  [
+                                          "T1078"
+                                      ],
+                       "displayName":  "Identity - Risky Sign-in Detected by Entra ID Protection",
+                       "enabled":  true,
+                       "description":  "DETECTS\nSign-ins that Entra ID Protection scored medium or high risk at the time of authentication.\n\nWHY IT MATTERS\nSurfaces Microsoft own machine-learning risk signal into the SIEM so it can be correlated with everything else, rather than sitting in a separate portal. The underlying detections include leaked credentials, anonymous IP, unfamiliar sign-in properties, and malicious IP reputation (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Read RiskDetail and RiskEventTypes to learn why Microsoft scored it risky. The reason drives the response.\n2. Check ResultType. Risky and successful is materially worse than risky and blocked.\n3. Confirm whether the risk was auto-remediated by a risk-based Conditional Access policy.\n4. Correlate with the user other activity in AuditLogs and AzureActivity for the same window.\n5. If unremediated and successful: revoke sessions and force password reset.\n\nFALSE POSITIVES\nUnfamiliar-location scoring for travelling users and VPN adoption. Risk state of dismissed or remediated indicates prior analyst or automated judgement.\n\nSOURCE\nSigninLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

@@ -1,16 +1,60 @@
-﻿{
+{
     "name":  "c0de0014-0000-4000-8000-000000000014",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - Policy Assignment Deleted",
-                       "description":  "DETECTS\nDeletion of an Azure Policy assignment.\n\nWHY IT MATTERS\nPolicy assignments are preventive guardrails that block non-compliant configurations, such as public storage, missing encryption, or unapproved regions. Removing one is a precondition for an action the policy would otherwise have denied, so this frequently appears immediately before a misconfiguration is deliberately introduced (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Identify which policy was removed and what it enforced.\n2. Look for resource changes by the same Caller in the following minutes that the policy would have blocked.\n3. Confirm the Caller is authorized to manage governance.\n4. Restore the assignment and run a compliance scan to find anything created while it was absent.\n5. If unauthorized: treat any configuration change in the gap as suspect.\n\nFALSE POSITIVES\nGovernance restructuring and policy migration work.\n\nSOURCE\nAzureActivity",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.AUTHORIZATION/POLICYASSIGNMENTS\"\n| where OperationNameValue has \"DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup\n| extend Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "ResourceGroup":  "ResourceGroup",
+                                             "PolicyScope":  "Resource",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Azure Policy assignment deleted by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deleted an Azure Policy assignment at {{Resource}}, removing a preventive guardrail."
+                                                },
+                       "severity":  "Medium",
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.AUTHORIZATION/POLICYASSIGNMENTS\"\n| where OperationNameValue has \"DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup\n| extend Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,47 +63,9 @@
                        "techniques":  [
                                           "T1562"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "ResourceGroup":  "ResourceGroup",
-                                             "PolicyScope":  "Resource",
-                                             "Caller":  "Caller",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Azure Policy assignment deleted by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deleted an Azure Policy assignment at {{Resource}}, removing a preventive guardrail."
-                                                }
+                       "displayName":  "Azure - Policy Assignment Deleted",
+                       "enabled":  true,
+                       "description":  "DETECTS\nDeletion of an Azure Policy assignment.\n\nWHY IT MATTERS\nPolicy assignments are preventive guardrails that block non-compliant configurations, such as public storage, missing encryption, or unapproved regions. Removing one is a precondition for an action the policy would otherwise have denied, so this frequently appears immediately before a misconfiguration is deliberately introduced (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Identify which policy was removed and what it enforced.\n2. Look for resource changes by the same Caller in the following minutes that the policy would have blocked.\n3. Confirm the Caller is authorized to manage governance.\n4. Restore the assignment and run a compliance scan to find anything created while it was absent.\n5. If unauthorized: treat any configuration change in the gap as suspect.\n\nFALSE POSITIVES\nGovernance restructuring and policy migration work.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

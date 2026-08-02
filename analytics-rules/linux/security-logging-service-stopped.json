@@ -1,16 +1,51 @@
-﻿{
+{
     "name":  "c0de0057-0000-4000-8000-000000000057",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Linux - Security Logging Service Stopped",
-                       "description":  "DETECTS\nStop or shutdown events for auditd, rsyslog, or syslog-ng on a Linux host.\n\nWHY IT MATTERS\nStopping the logging daemon is a deliberate act with essentially no legitimate ad hoc justification, and it blinds the SOC to everything that follows on that host. It is normally performed immediately before the real objective, which means the alert is often the last event you will receive from that machine (MITRE T1562, Impair Defenses). Note the inherent race: a fast attacker may stop logging before the stop event itself ships.\n\nTRIAGE\n1. Correlate against the Heartbeat rule. A logging stop followed by heartbeat loss strongly indicates deliberate action rather than a crash.\n2. Establish whether a patch or maintenance window explains a service restart.\n3. Review everything the host logged in the hour before the stop.\n4. Connect to the host and inspect service state, shell history, and running processes.\n5. If unexplained: isolate the host and treat all activity since the stop as unlogged and unknown.\n\nFALSE POSITIVES\nLegitimate service restarts during patching, package upgrades, and planned reboots. These pair with a corresponding start event shortly after.\n\nSOURCE\nSyslog",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "Syslog\n| where SyslogMessage has_any (\"Stopped Security Auditing Service\", \"Stopping System Logging Service\", \"Stopped System Logging Service\", \"audit daemon is exiting\", \"auditd is stopping\")\n    or (SyslogMessage has \"Stopping\" and SyslogMessage has_any (\"auditd\", \"rsyslog\", \"syslog-ng\"))\n| project TimeGenerated, Computer, ProcessName, SyslogMessage, Facility, SeverityLevel\n| extend HostName = Computer",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Host"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Message":  "SyslogMessage",
+                                             "Severity":  "SeverityLevel",
+                                             "TargetHost":  "Computer",
+                                             "Process":  "ProcessName"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Host",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Logging service stopped on {{Computer}}",
+                                                    "alertDescriptionFormat":  "Security logging service stop detected on {{Computer}}: {{SyslogMessage}}"
+                                                },
+                       "severity":  "High",
+                       "query":  "Syslog\n| where SyslogMessage has_any (\"Stopped Security Auditing Service\", \"Stopping System Logging Service\", \"Stopped System Logging Service\", \"audit daemon is exiting\", \"auditd is stopping\")\n    or (SyslogMessage has \"Stopping\" and SyslogMessage has_any (\"auditd\", \"rsyslog\", \"syslog-ng\"))\n| project TimeGenerated, Computer, ProcessName, SyslogMessage, Facility, SeverityLevel\n| extend HostName = Computer",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,38 +54,9 @@
                        "techniques":  [
                                           "T1562"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "HostName",
-                                                                            "columnName":  "HostName"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Host"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Message":  "SyslogMessage",
-                                             "Severity":  "SeverityLevel",
-                                             "TargetHost":  "Computer",
-                                             "Process":  "ProcessName"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Logging service stopped on {{Computer}}",
-                                                    "alertDescriptionFormat":  "Security logging service stop detected on {{Computer}}: {{SyslogMessage}}"
-                                                }
+                       "displayName":  "Linux - Security Logging Service Stopped",
+                       "enabled":  true,
+                       "description":  "DETECTS\nStop or shutdown events for auditd, rsyslog, or syslog-ng on a Linux host.\n\nWHY IT MATTERS\nStopping the logging daemon is a deliberate act with essentially no legitimate ad hoc justification, and it blinds the SOC to everything that follows on that host. It is normally performed immediately before the real objective, which means the alert is often the last event you will receive from that machine (MITRE T1562, Impair Defenses). Note the inherent race: a fast attacker may stop logging before the stop event itself ships.\n\nTRIAGE\n1. Correlate against the Heartbeat rule. A logging stop followed by heartbeat loss strongly indicates deliberate action rather than a crash.\n2. Establish whether a patch or maintenance window explains a service restart.\n3. Review everything the host logged in the hour before the stop.\n4. Connect to the host and inspect service state, shell history, and running processes.\n5. If unexplained: isolate the host and treat all activity since the stop as unlogged and unknown.\n\nFALSE POSITIVES\nLegitimate service restarts during patching, package upgrades, and planned reboots. These pair with a corresponding start event shortly after.\n\nSOURCE\nSyslog",
+                       "alertRuleTemplateName":  null
                    }
 }

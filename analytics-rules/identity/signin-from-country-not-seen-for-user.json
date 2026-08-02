@@ -1,16 +1,61 @@
-﻿{
+{
     "name":  "c0de0033-0000-4000-8000-000000000033",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Identity - Sign-in from Country Not Seen for User",
-                       "description":  "DETECTS\nA successful sign-in from a country that specific user has not signed in from during the previous 14 days. Baselines per user rather than per tenant.\n\nWHY IT MATTERS\nPer-user baselining is far more precise than a tenant-wide country allowlist. A country that is normal for the organisation can still be anomalous for an individual. This catches credential use from attacker infrastructure even when that geography is otherwise common in the tenant (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Confirm whether the user is travelling or newly using a VPN.\n2. Compare device and user agent against the user established pattern.\n3. Check whether sign-ins from the previous country continue in parallel, which would indicate two concurrent parties.\n4. Review what the session accessed.\n5. If unexplained: revoke sessions and verify with the user out of band.\n\nFALSE POSITIVES\nGenuine travel, VPN adoption, and roaming. Expect elevated volume during the first 14 days of operation while the baseline populates, and after any holiday period.\n\nSOURCE\nSigninLogs",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "let KnownUserCountry = SigninLogs\n    | where TimeGenerated between (ago(14d) .. ago(1d))\n    | where ResultType == \"0\"\n    | extend UserCountry = strcat(UserPrincipalName, \"|\", tostring(LocationDetails.countryOrRegion))\n    | distinct UserCountry;\nSigninLogs\n| where TimeGenerated \u003e ago(1h)\n| where ResultType == \"0\"\n| extend Country = tostring(LocationDetails.countryOrRegion)\n| where isnotempty(Country)\n| extend UserCountry = strcat(UserPrincipalName, \"|\", Country)\n| where UserCountry !in (KnownUserCountry)\n| project TimeGenerated, UserPrincipalName, IPAddress, Country, AppDisplayName, UserAgent\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "P14D",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "UserAgent":  "UserAgent",
+                                             "NewCountry":  "Country",
+                                             "User":  "UserPrincipalName",
+                                             "Application":  "AppDisplayName",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "{{UserPrincipalName}} signed in from new country {{Country}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} authenticated from {{IPAddress}} in {{Country}}, a country not seen for this user in the previous 14 days."
+                                                },
+                       "severity":  "Medium",
+                       "query":  "let KnownUserCountry = SigninLogs\n    | where TimeGenerated between (ago(14d) .. ago(1d))\n    | where ResultType == \"0\"\n    | extend UserCountry = strcat(UserPrincipalName, \"|\", tostring(LocationDetails.countryOrRegion))\n    | distinct UserCountry;\nSigninLogs\n| where TimeGenerated \u003e ago(1h)\n| where ResultType == \"0\"\n| extend Country = tostring(LocationDetails.countryOrRegion)\n| where isnotempty(Country)\n| extend UserCountry = strcat(UserPrincipalName, \"|\", Country)\n| where UserCountry !in (KnownUserCountry)\n| project TimeGenerated, UserPrincipalName, IPAddress, Country, AppDisplayName, UserAgent\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,48 +64,9 @@
                        "techniques":  [
                                           "T1078"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "UserAgent":  "UserAgent",
-                                             "NewCountry":  "Country",
-                                             "User":  "UserPrincipalName",
-                                             "Application":  "AppDisplayName",
-                                             "SourceIP":  "IPAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "{{UserPrincipalName}} signed in from new country {{Country}}",
-                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} authenticated from {{IPAddress}} in {{Country}}, a country not seen for this user in the previous 14 days."
-                                                }
+                       "displayName":  "Identity - Sign-in from Country Not Seen for User",
+                       "enabled":  true,
+                       "description":  "DETECTS\nA successful sign-in from a country that specific user has not signed in from during the previous 14 days. Baselines per user rather than per tenant.\n\nWHY IT MATTERS\nPer-user baselining is far more precise than a tenant-wide country allowlist. A country that is normal for the organisation can still be anomalous for an individual. This catches credential use from attacker infrastructure even when that geography is otherwise common in the tenant (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Confirm whether the user is travelling or newly using a VPN.\n2. Compare device and user agent against the user established pattern.\n3. Check whether sign-ins from the previous country continue in parallel, which would indicate two concurrent parties.\n4. Review what the session accessed.\n5. If unexplained: revoke sessions and verify with the user out of band.\n\nFALSE POSITIVES\nGenuine travel, VPN adoption, and roaming. Expect elevated volume during the first 14 days of operation while the baseline populates, and after any holiday period.\n\nSOURCE\nSigninLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

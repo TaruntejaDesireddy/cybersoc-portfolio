@@ -1,16 +1,51 @@
-﻿{
+{
     "name":  "b1a1f003-0000-4000-8000-000000000003",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Ops - Data Source Heartbeat Missing",
-                       "description":  "DETECTS\nAny monitored host that has not sent a Heartbeat record for 30 minutes or more, evaluated every 30 minutes.\n\nWHY IT MATTERS\nA detection-coverage control rather than a threat detection. A silent agent means the SOC is blind to that host: no Syslog, no security events, no telemetry feeding any other rule in this workspace. Attackers stop or uninstall monitoring agents specifically to suppress logging before acting (MITRE T1489, Service Stop). The far more common cause is a host being shut down, deallocated, or losing connectivity.\n\nTRIAGE\n1. Check whether the VM is running or deallocated in Azure.\n2. If running but silent, connect and verify the Azure Monitor Agent service state.\n3. Review the last events received before the gap for signs of tampering or a service stop.\n4. Correlate against the Linux logging service rule. Both firing for one host indicates deliberate action.\n5. Restore agent connectivity and confirm ingestion resumes.\n\nFALSE POSITIVES\nExpected and frequent in a lab. Auto-shutdown schedules, deallocated VMs, and decommissioned hosts all trigger it. Tune by excluding hosts on a known shutdown schedule or lengthening the threshold.\n\nSOURCE\nHeartbeat",
-                       "severity":  "Low",
-                       "enabled":  true,
-                       "query":  "Heartbeat\n| summarize LastHeartbeat = max(TimeGenerated), OSType = any(OSType), ComputerIP = any(ComputerIP) by Computer\n| where LastHeartbeat \u003c ago(30m)\n| extend MinutesSilent = datetime_diff(\"minute\", now(), LastHeartbeat)\n| extend TimeGenerated = LastHeartbeat, HostName = Computer",
                        "queryFrequency":  "PT30M",
                        "queryPeriod":  "P1D",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Host"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "SilentHost":  "Computer",
+                                             "MinutesSilent":  "MinutesSilent",
+                                             "LastHeartbeat":  "LastHeartbeat",
+                                             "OSType":  "OSType"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Host",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Host {{Computer}} stopped reporting telemetry",
+                                                    "alertDescriptionFormat":  "{{Computer}} last sent a heartbeat at {{LastHeartbeat}}, {{MinutesSilent}} minutes ago. Telemetry from this host is not reaching the workspace."
+                                                },
+                       "severity":  "Low",
+                       "query":  "Heartbeat\n| summarize LastHeartbeat = max(TimeGenerated), OSType = any(OSType), ComputerIP = any(ComputerIP) by Computer\n| where LastHeartbeat between (ago(3h) .. ago(30m))\n| extend MinutesSilent = datetime_diff(\"minute\", now(), LastHeartbeat)\n| extend TimeGenerated = LastHeartbeat, HostName = Computer\n",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,38 +54,9 @@
                        "techniques":  [
                                           "T1489"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "HostName",
-                                                                            "columnName":  "HostName"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Host"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "SilentHost":  "Computer",
-                                             "MinutesSilent":  "MinutesSilent",
-                                             "LastHeartbeat":  "LastHeartbeat",
-                                             "OSType":  "OSType"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Host {{Computer}} silent for {{MinutesSilent}} minutes",
-                                                    "alertDescriptionFormat":  "{{Computer}} last sent a heartbeat at {{LastHeartbeat}}, {{MinutesSilent}} minutes ago. Telemetry from this host is not reaching the workspace."
-                                                }
+                       "displayName":  "Ops - Data Source Heartbeat Missing",
+                       "enabled":  true,
+                       "description":  "DETECTS\nAny monitored host that has not sent a Heartbeat record for 30 minutes or more, evaluated every 30 minutes.\n\nWHY IT MATTERS\nA detection-coverage control rather than a threat detection. A silent agent means the SOC is blind to that host: no Syslog, no security events, no telemetry feeding any other rule in this workspace. Attackers stop or uninstall monitoring agents specifically to suppress logging before acting (MITRE T1489, Service Stop). The far more common cause is a host being shut down, deallocated, or losing connectivity.\n\nTRIAGE\n1. Check whether the VM is running or deallocated in Azure.\n2. If running but silent, connect and verify the Azure Monitor Agent service state.\n3. Review the last events received before the gap for signs of tampering or a service stop.\n4. Correlate against the Linux logging service rule. Both firing for one host indicates deliberate action.\n5. Restore agent connectivity and confirm ingestion resumes.\n\nFALSE POSITIVES\nExpected and frequent in a lab. Auto-shutdown schedules, deallocated VMs, and decommissioned hosts all trigger it. Tune by excluding hosts on a known shutdown schedule or lengthening the threshold.\n\nSOURCE\nHeartbeat\n\nTUNING HISTORY (2026-08-02)\nDetection window bounded to hosts silent between 30 minutes and 3 hours. The previous\nunbounded form, where LastHeartbeat \u003c ago(30m), re-alerted every 30 minutes for as long\nas a host stayed absent anywhere inside the 1-day queryPeriod. One deliberately deleted\nVM produced 70 alerts and 57 separate incidents. Bounding it means the rule fires a few\ntimes at the onset of silence and then goes quiet; sustained absence remains visible from\nthe open incident, and prolonged data loss is separately covered by Ops - Log Ingestion\nVolume Drop by Data Type.\nMinutesSilent was removed from the alert title and kept in the description only. A value\nthat changes on every evaluation makes each alert title unique, which produced misleading\nincident titles - an incident would read \"silent for 45 minutes\" indefinitely while hours\npassed. Incident grouping is now keyed on Host over a 1-day lookback.",
+                       "alertRuleTemplateName":  null
                    }
 }

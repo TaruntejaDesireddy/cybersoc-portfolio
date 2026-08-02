@@ -1,16 +1,60 @@
-﻿{
+{
     "name":  "c0de0018-0000-4000-8000-000000000018",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - Public IP Address Created",
-                       "description":  "DETECTS\nCreation of a public IP address resource.\n\nWHY IT MATTERS\nAttack surface management rather than direct threat detection. Every public IP is a potential ingress point, and unmanaged public IPs attached to VMs are the most common route to internet-exposed RDP and SSH (MITRE T1133, External Remote Services). Low severity by design: this is inventory hygiene that becomes critical when paired with a permissive NSG.\n\nTRIAGE\n1. Determine what the public IP is attached to and what ports the associated NSG allows.\n2. Confirm the exposure is intentional and documented.\n3. Correlate with NSG changes by the same Caller in the same window. Public IP plus permissive NSG is the real risk.\n4. Verify the workload behind it is patched and monitored.\n5. If unintended: remove the public IP and use Bastion or a private endpoint instead.\n\nFALSE POSITIVES\nExpected in any environment that deploys internet-facing services. Best used for weekly exposure review rather than per-incident response.\n\nSOURCE\nAzureActivity",
-                       "severity":  "Low",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.NETWORK/PUBLICIPADDRESSES/WRITE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup\n| extend Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "PublicIPResource":  "Resource",
+                                             "Caller":  "Caller",
+                                             "ResourceGroup":  "ResourceGroup",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Public IP {{Resource}} created by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} created public IP address resource {{Resource}}, potentially exposing a workload to the internet."
+                                                },
+                       "severity":  "Low",
+                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.NETWORK/PUBLICIPADDRESSES/WRITE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup\n| extend Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,47 +63,9 @@
                        "techniques":  [
                                           "T1133"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "PublicIPResource":  "Resource",
-                                             "Caller":  "Caller",
-                                             "ResourceGroup":  "ResourceGroup",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Public IP {{Resource}} created by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} created public IP address resource {{Resource}}, potentially exposing a workload to the internet."
-                                                }
+                       "displayName":  "Azure - Public IP Address Created",
+                       "enabled":  true,
+                       "description":  "DETECTS\nCreation of a public IP address resource.\n\nWHY IT MATTERS\nAttack surface management rather than direct threat detection. Every public IP is a potential ingress point, and unmanaged public IPs attached to VMs are the most common route to internet-exposed RDP and SSH (MITRE T1133, External Remote Services). Low severity by design: this is inventory hygiene that becomes critical when paired with a permissive NSG.\n\nTRIAGE\n1. Determine what the public IP is attached to and what ports the associated NSG allows.\n2. Confirm the exposure is intentional and documented.\n3. Correlate with NSG changes by the same Caller in the same window. Public IP plus permissive NSG is the real risk.\n4. Verify the workload behind it is patched and monitored.\n5. If unintended: remove the public IP and use Bastion or a private endpoint instead.\n\nFALSE POSITIVES\nExpected in any environment that deploys internet-facing services. Best used for weekly exposure review rather than per-incident response.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }
