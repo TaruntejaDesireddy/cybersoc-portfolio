@@ -1,16 +1,51 @@
-﻿{
+{
     "name":  "c0de0047-0000-4000-8000-000000000047",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Entra - Tenant-Wide Admin Consent Granted",
-                       "description":  "DETECTS\nConsent granted on behalf of all principals in the tenant, identified by an AllPrincipals scope in the grant.\n\nWHY IT MATTERS\nThe most severe form of consent grant. Rather than one user data, the application gains access across the entire tenant, and no individual user sees a prompt or has any opportunity to refuse. A malicious application with tenant-wide Mail.Read can silently read every mailbox in the organisation (MITRE T1550, Use Alternate Authentication Material).\n\nTRIAGE\n1. Treat as high priority until the application is positively identified as sanctioned.\n2. Enumerate the granted permissions and calculate the blast radius across the tenant.\n3. Verify the publisher and the application registration date.\n4. Confirm the granting administrator intended tenant-wide rather than per-user scope.\n5. If illicit: revoke immediately, remove the service principal, and treat all data in scope as accessed.\n\nFALSE POSITIVES\nLegitimate enterprise application deployment, which is exactly when admin consent is used correctly. Verification is quick because the application should be recognisable and the admin identifiable.\n\nSOURCE\nAuditLogs",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "AuditLogs\n| where OperationName has_any (\"Consent to application\", \"Add app role assignment grant to user\")\n| where Result =~ \"success\"\n| where tostring(TargetResources) has \"AllPrincipals\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend AppName = tostring(TargetResources.displayName)\n| project TimeGenerated, Actor, AppName, OperationName, CorrelationId\n| extend Account = Actor",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "Operation":  "OperationName",
+                                             "Correlation":  "CorrelationId",
+                                             "Application":  "AppName"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Tenant-wide admin consent granted to {{AppName}} by {{Actor}}",
+                                                    "alertDescriptionFormat":  "{{Actor}} granted tenant-wide (AllPrincipals) consent to application {{AppName}}, applying to every user in the tenant."
+                                                },
+                       "severity":  "High",
+                       "query":  "AuditLogs\n| where OperationName has_any (\"Consent to application\", \"Add app role assignment grant to user\")\n| where Result =~ \"success\"\n| where tostring(TargetResources) has \"AllPrincipals\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend AppName = tostring(TargetResources.displayName)\n| project TimeGenerated, Actor, AppName, OperationName, CorrelationId\n| extend Account = Actor",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,38 +54,9 @@
                        "techniques":  [
                                           "T1528"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Actor":  "Actor",
-                                             "Operation":  "OperationName",
-                                             "Correlation":  "CorrelationId",
-                                             "Application":  "AppName"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Tenant-wide admin consent granted to {{AppName}} by {{Actor}}",
-                                                    "alertDescriptionFormat":  "{{Actor}} granted tenant-wide (AllPrincipals) consent to application {{AppName}}, applying to every user in the tenant."
-                                                }
+                       "displayName":  "Entra - Tenant-Wide Admin Consent Granted",
+                       "enabled":  true,
+                       "description":  "DETECTS\nConsent granted on behalf of all principals in the tenant, identified by an AllPrincipals scope in the grant.\n\nWHY IT MATTERS\nThe most severe form of consent grant. Rather than one user data, the application gains access across the entire tenant, and no individual user sees a prompt or has any opportunity to refuse. A malicious application with tenant-wide Mail.Read can silently read every mailbox in the organisation (MITRE T1550, Use Alternate Authentication Material).\n\nTRIAGE\n1. Treat as high priority until the application is positively identified as sanctioned.\n2. Enumerate the granted permissions and calculate the blast radius across the tenant.\n3. Verify the publisher and the application registration date.\n4. Confirm the granting administrator intended tenant-wide rather than per-user scope.\n5. If illicit: revoke immediately, remove the service principal, and treat all data in scope as accessed.\n\nFALSE POSITIVES\nLegitimate enterprise application deployment, which is exactly when admin consent is used correctly. Verification is quick because the application should be recognisable and the admin identifiable.\n\nSOURCE\nAuditLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

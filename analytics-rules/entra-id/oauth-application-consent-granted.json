@@ -1,16 +1,51 @@
-﻿{
+{
     "name":  "c0de0046-0000-4000-8000-000000000046",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Entra - OAuth Application Consent Granted",
-                       "description":  "DETECTS\nA user or administrator granting OAuth permissions to an application.\n\nWHY IT MATTERS\nIllicit consent grant attacks bypass passwords and MFA entirely. The victim is phished into approving a legitimate-looking application, which then holds a token to read mail, files, or directory data for as long as the grant persists. Because the user genuinely authenticated, no credential compromise ever occurs and no sign-in looks anomalous (MITRE T1550, Use Alternate Authentication Material).\n\nTRIAGE\n1. Identify the application and whether it is a known, sanctioned publisher.\n2. Review the specific permissions granted. Mail.Read, Files.ReadWrite.All, and Directory.Read.All warrant immediate attention.\n3. Determine whether the application was recently registered, which is typical of purpose-built phishing apps.\n4. Check how many users consented to the same application. A cluster indicates a phishing campaign.\n5. If illicit: revoke the grant, delete the service principal, and audit what the application accessed.\n\nFALSE POSITIVES\nLegitimate SaaS onboarding and normal user consent where user consent is permitted. Restricting user consent to verified publishers substantially reduces both risk and alert volume.\n\nSOURCE\nAuditLogs",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "AuditLogs\n| where OperationName has_any (\"Consent to application\", \"Add OAuth2PermissionGrant\", \"Add delegated permission grant\", \"Add app role assignment grant to user\")\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend AppName = tostring(TargetResources.displayName)\n| project TimeGenerated, Actor, AppName, OperationName, CorrelationId\n| extend Account = Actor",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "Operation":  "OperationName",
+                                             "Correlation":  "CorrelationId",
+                                             "Application":  "AppName"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "OAuth consent granted to {{AppName}} by {{Actor}}",
+                                                    "alertDescriptionFormat":  "{{Actor}} granted OAuth permissions to application {{AppName}} via {{OperationName}}."
+                                                },
+                       "severity":  "Medium",
+                       "query":  "AuditLogs\n| where OperationName has_any (\"Consent to application\", \"Add OAuth2PermissionGrant\", \"Add delegated permission grant\", \"Add app role assignment grant to user\")\n| where Result =~ \"success\"\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| mv-expand TargetResources\n| extend AppName = tostring(TargetResources.displayName)\n| project TimeGenerated, Actor, AppName, OperationName, CorrelationId\n| extend Account = Actor",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,38 +54,9 @@
                        "techniques":  [
                                           "T1528"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Actor":  "Actor",
-                                             "Operation":  "OperationName",
-                                             "Correlation":  "CorrelationId",
-                                             "Application":  "AppName"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "OAuth consent granted to {{AppName}} by {{Actor}}",
-                                                    "alertDescriptionFormat":  "{{Actor}} granted OAuth permissions to application {{AppName}} via {{OperationName}}."
-                                                }
+                       "displayName":  "Entra - OAuth Application Consent Granted",
+                       "enabled":  true,
+                       "description":  "DETECTS\nA user or administrator granting OAuth permissions to an application.\n\nWHY IT MATTERS\nIllicit consent grant attacks bypass passwords and MFA entirely. The victim is phished into approving a legitimate-looking application, which then holds a token to read mail, files, or directory data for as long as the grant persists. Because the user genuinely authenticated, no credential compromise ever occurs and no sign-in looks anomalous (MITRE T1550, Use Alternate Authentication Material).\n\nTRIAGE\n1. Identify the application and whether it is a known, sanctioned publisher.\n2. Review the specific permissions granted. Mail.Read, Files.ReadWrite.All, and Directory.Read.All warrant immediate attention.\n3. Determine whether the application was recently registered, which is typical of purpose-built phishing apps.\n4. Check how many users consented to the same application. A cluster indicates a phishing campaign.\n5. If illicit: revoke the grant, delete the service principal, and audit what the application accessed.\n\nFALSE POSITIVES\nLegitimate SaaS onboarding and normal user consent where user consent is permitted. Restricting user consent to verified publishers substantially reduces both risk and alert volume.\n\nSOURCE\nAuditLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

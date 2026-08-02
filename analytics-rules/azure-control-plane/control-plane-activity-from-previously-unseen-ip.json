@@ -1,16 +1,56 @@
-﻿{
+{
     "name":  "c0de0019-0000-4000-8000-000000000019",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - Control Plane Activity from Previously Unseen IP",
-                       "description":  "DETECTS\nAzure control-plane operations originating from a caller IP address not seen anywhere in the previous 14 days.\n\nWHY IT MATTERS\nBehavioural baseline rather than a signature. Administrative activity normally originates from a stable set of egress IPs. A brand-new source IP performing control-plane operations is consistent with credential theft, session hijack, or access from attacker infrastructure (MITRE T1078, Valid Accounts). Effective against attackers who hold valid credentials and would otherwise generate no failures.\n\nTRIAGE\n1. Geolocate the new IP and compare against expected admin locations.\n2. Review the operations performed. Read-only enumeration differs sharply from write or delete.\n3. Check the Caller sign-in history for a matching new IP in SigninLogs.\n4. Confirm with the user whether they changed network, travelled, or started using a new VPN.\n5. If unexplained: revoke sessions and force reauthentication.\n\nFALSE POSITIVES\nNew VPN endpoints, ISP address changes, travel, and newly deployed automation. Expect noise during the first 14 days of operation while the baseline fills.\n\nSOURCE\nAzureActivity",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "let KnownCallerIps = AzureActivity\n    | where TimeGenerated between (ago(14d) .. ago(1d))\n    | where isnotempty(CallerIpAddress)\n    | distinct CallerIpAddress;\nAzureActivity\n| where TimeGenerated \u003e ago(1h)\n| where isnotempty(CallerIpAddress)\n| where CallerIpAddress !in (KnownCallerIps)\n| summarize OperationCount = count(), Operations = make_set(OperationNameValue, 20),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Caller, CallerIpAddress\n| extend TimeGenerated = EndTime, Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "P14D",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "OperationCount":  "OperationCount",
+                                             "Caller":  "Caller",
+                                             "Operations":  "Operations",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "severity":  "Medium",
+                       "query":  "let KnownCallerIps = AzureActivity\n    | where TimeGenerated between (ago(14d) .. ago(1d))\n    | where isnotempty(CallerIpAddress)\n    | distinct CallerIpAddress;\nAzureActivity\n| where TimeGenerated \u003e ago(1h)\n| where isnotempty(CallerIpAddress)\n| where CallerIpAddress !in (KnownCallerIps)\n| summarize OperationCount = count(), Operations = make_set(OperationNameValue, 20),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Caller, CallerIpAddress\n| extend TimeGenerated = EndTime, Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,43 +59,9 @@
                        "techniques":  [
                                           "T1078"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "SingleAlert"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "OperationCount":  "OperationCount",
-                                             "Caller":  "Caller",
-                                             "Operations":  "Operations",
-                                             "SourceIP":  "CallerIpAddress"
-                                         }
+                       "displayName":  "Azure - Control Plane Activity from Previously Unseen IP",
+                       "enabled":  true,
+                       "description":  "DETECTS\nAzure control-plane operations originating from a caller IP address not seen anywhere in the previous 14 days.\n\nWHY IT MATTERS\nBehavioural baseline rather than a signature. Administrative activity normally originates from a stable set of egress IPs. A brand-new source IP performing control-plane operations is consistent with credential theft, session hijack, or access from attacker infrastructure (MITRE T1078, Valid Accounts). Effective against attackers who hold valid credentials and would otherwise generate no failures.\n\nTRIAGE\n1. Geolocate the new IP and compare against expected admin locations.\n2. Review the operations performed. Read-only enumeration differs sharply from write or delete.\n3. Check the Caller sign-in history for a matching new IP in SigninLogs.\n4. Confirm with the user whether they changed network, travelled, or started using a new VPN.\n5. If unexplained: revoke sessions and force reauthentication.\n\nFALSE POSITIVES\nNew VPN endpoints, ISP address changes, travel, and newly deployed automation. Expect noise during the first 14 days of operation while the baseline fills.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

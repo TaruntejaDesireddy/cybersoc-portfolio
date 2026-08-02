@@ -1,16 +1,61 @@
-﻿{
+{
     "name":  "c0de0034-0000-4000-8000-000000000034",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Identity - Dormant Account Reactivated",
-                       "description":  "DETECTS\nA successful sign-in by an account with no successful sign-in in the previous 14 days.\n\nWHY IT MATTERS\nDormant accounts are the softest target in any tenant: often unmonitored, frequently exempt from MFA, and rarely subject to password rotation. Attackers specifically seek them because their reactivation draws no attention from a human owner who would notice unexpected activity (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Establish whether the account has a current owner and a legitimate purpose.\n2. Identify whether it is a service account, a departed employee, or a break-glass identity. Break-glass use is itself a notable event.\n3. Review the source IP and device against anything historical for the account.\n4. Check the account privilege level. Dormant plus privileged is the worst combination.\n5. If unexplained: disable the account and audit its activity since reactivation.\n\nFALSE POSITIVES\nReturning staff after extended leave, seasonal or contract workers, quarterly-use service accounts, and deliberate break-glass testing. A 14-day window is deliberately tight and will need lengthening in environments with irregular usage.\n\nSOURCE\nSigninLogs",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "let ActiveUsers = SigninLogs\n    | where TimeGenerated between (ago(14d) .. ago(1h))\n    | where ResultType == \"0\"\n    | distinct UserPrincipalName;\nSigninLogs\n| where TimeGenerated \u003e ago(1h)\n| where ResultType == \"0\"\n| where UserPrincipalName !in (ActiveUsers)\n| project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "P14D",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "UserAgent":  "UserAgent",
+                                             "User":  "UserPrincipalName",
+                                             "Application":  "AppDisplayName",
+                                             "Location":  "Location",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Dormant account {{UserPrincipalName}} signed in from {{IPAddress}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} signed in successfully from {{IPAddress}} after no successful sign-in in the previous 14 days."
+                                                },
+                       "severity":  "Medium",
+                       "query":  "let ActiveUsers = SigninLogs\n    | where TimeGenerated between (ago(14d) .. ago(1h))\n    | where ResultType == \"0\"\n    | distinct UserPrincipalName;\nSigninLogs\n| where TimeGenerated \u003e ago(1h)\n| where ResultType == \"0\"\n| where UserPrincipalName !in (ActiveUsers)\n| project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,48 +65,9 @@
                        "techniques":  [
                                           "T1078"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "UserAgent":  "UserAgent",
-                                             "User":  "UserPrincipalName",
-                                             "Application":  "AppDisplayName",
-                                             "Location":  "Location",
-                                             "SourceIP":  "IPAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Dormant account {{UserPrincipalName}} signed in from {{IPAddress}}",
-                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} signed in successfully from {{IPAddress}} after no successful sign-in in the previous 14 days."
-                                                }
+                       "displayName":  "Identity - Dormant Account Reactivated",
+                       "enabled":  true,
+                       "description":  "DETECTS\nA successful sign-in by an account with no successful sign-in in the previous 14 days.\n\nWHY IT MATTERS\nDormant accounts are the softest target in any tenant: often unmonitored, frequently exempt from MFA, and rarely subject to password rotation. Attackers specifically seek them because their reactivation draws no attention from a human owner who would notice unexpected activity (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Establish whether the account has a current owner and a legitimate purpose.\n2. Identify whether it is a service account, a departed employee, or a break-glass identity. Break-glass use is itself a notable event.\n3. Review the source IP and device against anything historical for the account.\n4. Check the account privilege level. Dormant plus privileged is the worst combination.\n5. If unexplained: disable the account and audit its activity since reactivation.\n\nFALSE POSITIVES\nReturning staff after extended leave, seasonal or contract workers, quarterly-use service accounts, and deliberate break-glass testing. A 14-day window is deliberately tight and will need lengthening in environments with irregular usage.\n\nSOURCE\nSigninLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

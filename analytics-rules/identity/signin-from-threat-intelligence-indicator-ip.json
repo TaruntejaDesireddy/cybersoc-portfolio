@@ -1,16 +1,61 @@
-﻿{
+{
     "name":  "b1a1f004-0000-4000-8000-000000000004",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Identity - Sign-in from Threat Intelligence Indicator IP",
-                       "description":  "DETECTS\nAn Entra ID interactive sign-in from an IP address matching an active threat intelligence indicator, joining SigninLogs against ThreatIntelIndicators on ipv4-addr observables.\n\nWHY IT MATTERS\nCorrelating identity activity against curated threat intelligence produces high fidelity relative to volume. A sign-in from a known-malicious IP is a direct indicator of credential compromise or an attack in progress (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Check ResultType. A value of 0 means the sign-in succeeded and the account should be treated as compromised.\n2. Assess the indicator source and confidence to weigh the match.\n3. Review the user recent sign-in history for impossible travel, new devices, or a changed user agent.\n4. Check AuditLogs for post-authentication persistence: MFA registration, credential additions, mailbox rules.\n5. On confirmed compromise: revoke sessions, force password reset, run the containment playbook.\n\nFALSE POSITIVES\nStale or low-confidence indicators, and shared egress such as commercial VPNs, Tor exits, or CGNAT ranges that carry legitimate traffic. Tune on indicator confidence.\n\nSCHEMA NOTE\nUses the current STIX-based ThreatIntelIndicators schema (ObservableKey, ObservableValue), not the deprecated ThreatIntelligenceIndicator table with NetworkIP. Published sample KQL generally targets the old schema and will not run here.\n\nSOURCE\nSigninLogs, ThreatIntelIndicators",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "let TIIps = ThreatIntelIndicators\n    | where ObservableKey == \"ipv4-addr:value\"\n    | where IsActive == true\n    | distinct ObservableValue;\nSigninLogs\n| where IPAddress in (TIIps)\n| project TimeGenerated, UserPrincipalName, IPAddress, ResultType, ResultDescription, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "P1D",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Outcome":  "ResultType",
+                                             "User":  "UserPrincipalName",
+                                             "Application":  "AppDisplayName",
+                                             "UserAgent":  "UserAgent",
+                                             "SourceIP":  "IPAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Sign-in from known-malicious IP {{IPAddress}} for {{UserPrincipalName}}",
+                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} authenticated from {{IPAddress}}, which matches an active threat intelligence indicator. Result code {{ResultType}}."
+                                                },
+                       "severity":  "High",
+                       "query":  "let TIIps = ThreatIntelIndicators\n    | where ObservableKey == \"ipv4-addr:value\"\n    | where IsActive == true\n    | distinct ObservableValue;\nSigninLogs\n| where IPAddress in (TIIps)\n| project TimeGenerated, UserPrincipalName, IPAddress, ResultType, ResultDescription, AppDisplayName, UserAgent, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,48 +64,9 @@
                        "techniques":  [
                                           "T1078"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Outcome":  "ResultType",
-                                             "User":  "UserPrincipalName",
-                                             "Application":  "AppDisplayName",
-                                             "UserAgent":  "UserAgent",
-                                             "SourceIP":  "IPAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Sign-in from known-malicious IP {{IPAddress}} for {{UserPrincipalName}}",
-                                                    "alertDescriptionFormat":  "{{UserPrincipalName}} authenticated from {{IPAddress}}, which matches an active threat intelligence indicator. Result code {{ResultType}}."
-                                                }
+                       "displayName":  "Identity - Sign-in from Threat Intelligence Indicator IP",
+                       "enabled":  true,
+                       "description":  "DETECTS\nAn Entra ID interactive sign-in from an IP address matching an active threat intelligence indicator, joining SigninLogs against ThreatIntelIndicators on ipv4-addr observables.\n\nWHY IT MATTERS\nCorrelating identity activity against curated threat intelligence produces high fidelity relative to volume. A sign-in from a known-malicious IP is a direct indicator of credential compromise or an attack in progress (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Check ResultType. A value of 0 means the sign-in succeeded and the account should be treated as compromised.\n2. Assess the indicator source and confidence to weigh the match.\n3. Review the user recent sign-in history for impossible travel, new devices, or a changed user agent.\n4. Check AuditLogs for post-authentication persistence: MFA registration, credential additions, mailbox rules.\n5. On confirmed compromise: revoke sessions, force password reset, run the containment playbook.\n\nFALSE POSITIVES\nStale or low-confidence indicators, and shared egress such as commercial VPNs, Tor exits, or CGNAT ranges that carry legitimate traffic. Tune on indicator confidence.\n\nSCHEMA NOTE\nUses the current STIX-based ThreatIntelIndicators schema (ObservableKey, ObservableValue), not the deprecated ThreatIntelligenceIndicator table with NetworkIP. Published sample KQL generally targets the old schema and will not run here.\n\nSOURCE\nSigninLogs, ThreatIntelIndicators",
+                       "alertRuleTemplateName":  null
                    }
 }

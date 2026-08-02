@@ -1,16 +1,61 @@
-﻿{
+{
     "name":  "c0de0006-0000-4000-8000-000000000006",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - RBAC Role Assignment Created",
-                       "description":  "DETECTS\nCreation of an Azure RBAC role assignment, granting a principal permissions over a subscription, resource group, or resource.\n\nWHY IT MATTERS\nThis is the primary mechanism for gaining and keeping Azure control-plane privilege (MITRE T1098, Account Manipulation). An attacker who assigns themselves Owner or Contributor secures durable access that survives password resets.\n\nTRIAGE\n1. Identify the role granted and the scope. Owner or Contributor at subscription scope is critical.\n2. Identify who received the assignment and whether that principal is known.\n3. Confirm the Caller is authorized to grant RBAC.\n4. Check whether the grantee immediately used the new rights.\n5. If unauthorized: remove the assignment and investigate the granting identity for compromise.\n\nFALSE POSITIVES\nRoutine access provisioning and IaC deployments. High volume in active environments. Tune by excluding known provisioning principals or by alerting only on privileged role definition IDs.\n\nSOURCE\nAzureActivity",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, SubscriptionId, CorrelationId\n| extend Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Scope":  "Resource",
+                                             "Caller":  "Caller",
+                                             "Correlation":  "CorrelationId",
+                                             "ResourceGroup":  "ResourceGroup",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Azure RBAC role assigned by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} created a role assignment at scope {{Resource}}."
+                                                },
+                       "severity":  "Medium",
+                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/WRITE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, SubscriptionId, CorrelationId\n| extend Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,48 +65,9 @@
                        "techniques":  [
                                           "T1098"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Scope":  "Resource",
-                                             "Caller":  "Caller",
-                                             "Correlation":  "CorrelationId",
-                                             "ResourceGroup":  "ResourceGroup",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Azure RBAC role assigned by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} created a role assignment at scope {{Resource}}."
-                                                }
+                       "displayName":  "Azure - RBAC Role Assignment Created",
+                       "enabled":  true,
+                       "description":  "DETECTS\nCreation of an Azure RBAC role assignment, granting a principal permissions over a subscription, resource group, or resource.\n\nWHY IT MATTERS\nThis is the primary mechanism for gaining and keeping Azure control-plane privilege (MITRE T1098, Account Manipulation). An attacker who assigns themselves Owner or Contributor secures durable access that survives password resets.\n\nTRIAGE\n1. Identify the role granted and the scope. Owner or Contributor at subscription scope is critical.\n2. Identify who received the assignment and whether that principal is known.\n3. Confirm the Caller is authorized to grant RBAC.\n4. Check whether the grantee immediately used the new rights.\n5. If unauthorized: remove the assignment and investigate the granting identity for compromise.\n\nFALSE POSITIVES\nRoutine access provisioning and IaC deployments. High volume in active environments. Tune by excluding known provisioning principals or by alerting only on privileged role definition IDs.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

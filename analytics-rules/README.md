@@ -1,6 +1,6 @@
 ﻿# Microsoft Sentinel Analytics Rules
 
-60 custom-authored scheduled analytics rules for Microsoft Sentinel. No gallery templates - every rule is written against tables confirmed to be ingesting in the target workspace, with entity mappings, custom details, and dynamic alert titles.
+64 custom-authored scheduled analytics rules for Microsoft Sentinel. No gallery templates - every rule is written against tables confirmed to be ingesting in the target workspace, with entity mappings, custom details, and dynamic alert titles.
 
 ## Design principles
 
@@ -10,20 +10,24 @@
 
 **Query efficiency is deliberate.** Filters lead with selective columns, `has`/`has_any` term matching is used instead of `contains`, projection happens before aggregation, and query frequency is matched to period so scan windows do not overlap and re-read the same data.
 
-**Alerts are self-describing.** 44 of the 60 rules use `alertDetailsOverride` so the incident title names the actual user, IP, or resource involved rather than repeating a static rule name.
+**Alerts are self-describing.** 45 of the 64 rules use `alertDetailsOverride` so the incident title names the actual user, IP, or resource involved rather than repeating a static rule name.
+
+**Incidents group by subject, not by alert.** Every rule sets a 24-hour `groupingConfiguration` keyed on its subject entity — Account where one exists, else Host, else IP. This is deliberate and was learned the hard way: with grouping disabled, a single deleted VM produced 57 separate incidents from one condition. Note that IP is never used as a grouping key on a rule that also carries an Account or Host, because an operator behind a rotating VPN presents a different IP on every alert, which defeats grouping entirely. The two rules with no entity mappings fall back to `AnyAlert`.
 
 ## Coverage
 
 | Category | Rules | Primary data source |
 |---|---:|---|
-| Azure Control Plane | 20 | AzureActivity |
-| Identity and Authentication | 20 | SigninLogs, AADNonInteractiveUserSignInLogs |
+| Azure Control Plane | 21 | AzureActivity, LAQueryLogs |
+| Identity and Authentication | 21 | SigninLogs, AADNonInteractiveUserSignInLogs |
 | Entra ID Directory | 12 | AuditLogs |
 | Linux Endpoint | 5 | Syslog |
-| Detection Health and Correlation | 3 | Heartbeat, Usage, AzureActivity |
-| **Total** | **60** | |
+| Detection Health and Correlation | 5 | Heartbeat, Usage, ThreatIntelIndicators, ACSEmailStatusUpdateOperational |
+| **Total** | **64** | |
 
-Severity split: 30 High, 25 Medium, 5 Low.
+Severity split: 31 High, 27 Medium, 6 Low.
+
+Grouping keys: 53 by Account, 6 by Host, 3 by IP, 2 `AnyAlert`.
 
 
 ## Azure Control Plane

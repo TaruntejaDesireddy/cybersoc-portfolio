@@ -1,16 +1,47 @@
-﻿{
+{
     "name":  "c0de0025-0000-4000-8000-000000000025",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Identity - Sign-in from Multiple Countries in Short Window",
-                       "description":  "DETECTS\nOne account signing in successfully from two or more distinct countries within a single hour.\n\nWHY IT MATTERS\nA practical impossible-travel detection that requires no risk licensing. Physical presence in two countries within an hour is impossible, so either the credential is shared, the session is hijacked, or one login is proxied through attacker infrastructure (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Identify which country is the anomaly against the user normal pattern.\n2. Determine whether the unexpected login used a VPN or hosting-provider IP.\n3. Compare user agent and device between the two sessions. Identical device with different geography suggests VPN; different device suggests a second party.\n4. Contact the user to confirm travel or VPN use.\n5. If unexplained: revoke sessions and reset credentials.\n\nFALSE POSITIVES\nCorporate VPN egress in another country, cloud-hosted mail clients polling from a datacentre region, and roaming mobile carriers. These are common enough to require per-environment tuning of expected countries.\n\nSOURCE\nSigninLogs",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "SigninLogs\n| where ResultType == \"0\"\n| extend Country = tostring(LocationDetails.countryOrRegion)\n| where isnotempty(Country)\n| summarize CountryCount = dcount(Country), Countries = make_set(Country, 10), SourceIPs = make_set(IPAddress, 15),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by UserPrincipalName\n| where CountryCount \u003e= 2\n| extend TimeGenerated = EndTime, Account = UserPrincipalName",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "CountryCount":  "CountryCount",
+                                             "User":  "UserPrincipalName",
+                                             "SourceIPs":  "SourceIPs",
+                                             "Countries":  "Countries"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "severity":  "High",
+                       "query":  "SigninLogs\n| where ResultType == \"0\"\n| extend Country = tostring(LocationDetails.countryOrRegion)\n| where isnotempty(Country)\n| summarize CountryCount = dcount(Country), Countries = make_set(Country, 10), SourceIPs = make_set(IPAddress, 15),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by UserPrincipalName\n| where CountryCount \u003e= 2\n| extend TimeGenerated = EndTime, Account = UserPrincipalName",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,34 +51,9 @@
                        "techniques":  [
                                           "T1078"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "SingleAlert"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "CountryCount":  "CountryCount",
-                                             "User":  "UserPrincipalName",
-                                             "SourceIPs":  "SourceIPs",
-                                             "Countries":  "Countries"
-                                         }
+                       "displayName":  "Identity - Sign-in from Multiple Countries in Short Window",
+                       "enabled":  true,
+                       "description":  "DETECTS\nOne account signing in successfully from two or more distinct countries within a single hour.\n\nWHY IT MATTERS\nA practical impossible-travel detection that requires no risk licensing. Physical presence in two countries within an hour is impossible, so either the credential is shared, the session is hijacked, or one login is proxied through attacker infrastructure (MITRE T1078, Valid Accounts).\n\nTRIAGE\n1. Identify which country is the anomaly against the user normal pattern.\n2. Determine whether the unexpected login used a VPN or hosting-provider IP.\n3. Compare user agent and device between the two sessions. Identical device with different geography suggests VPN; different device suggests a second party.\n4. Contact the user to confirm travel or VPN use.\n5. If unexplained: revoke sessions and reset credentials.\n\nFALSE POSITIVES\nCorporate VPN egress in another country, cloud-hosted mail clients polling from a datacentre region, and roaming mobile carriers. These are common enough to require per-environment tuning of expected countries.\n\nSOURCE\nSigninLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

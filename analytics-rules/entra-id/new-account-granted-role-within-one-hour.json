@@ -1,16 +1,51 @@
-﻿{
+{
     "name":  "c0de0050-0000-4000-8000-000000000050",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Entra - New Account Granted Role Within One Hour",
-                       "description":  "DETECTS\nAn account created and then assigned a directory role within sixty minutes, correlating two AuditLogs event types.\n\nWHY IT MATTERS\nThis sequence is the classic attacker persistence pattern: create an innocuous account, elevate it, then use it as a durable backdoor that survives remediation of the originally compromised identity. Legitimate provisioning almost always separates account creation from role assignment by an approval step, so the compressed timeline is itself the signal (MITRE T1136, Create Account).\n\nTRIAGE\n1. Identify the new account naming. Attackers often mimic service accounts or existing user patterns.\n2. Determine what role was granted and by whom.\n3. Confirm whether an onboarding request exists for this person.\n4. Check whether the new account has signed in, and from where.\n5. If unauthorized: disable the account immediately, then investigate the creating identity as compromised.\n\nFALSE POSITIVES\nAutomated provisioning pipelines that create and entitle accounts in one workflow, and admin-created service accounts. Tune by excluding the provisioning service principal.\n\nSOURCE\nAuditLogs",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "let NewAccounts = AuditLogs\n    | where OperationName =~ \"Add user\" and Result =~ \"success\"\n    | mv-expand TargetResources\n    | extend NewUser = tostring(TargetResources.userPrincipalName)\n    | where isnotempty(NewUser)\n    | project NewUser, CreatedTime = TimeGenerated;\nAuditLogs\n| where OperationName =~ \"Add member to role\" and Result =~ \"success\"\n| mv-expand TargetResources\n| extend NewUser = tostring(TargetResources.userPrincipalName)\n| where isnotempty(NewUser)\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| join kind=inner (NewAccounts) on NewUser\n| where TimeGenerated \u003e CreatedTime\n| where datetime_diff(\"minute\", TimeGenerated, CreatedTime) \u003c= 60\n| project TimeGenerated, Actor, NewUser, CreatedTime, OperationName, CorrelationId\n| extend Account = NewUser",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "P1D",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Actor":  "Actor",
+                                             "NewAccount":  "NewUser",
+                                             "Operation":  "OperationName",
+                                             "AccountCreated":  "CreatedTime"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "New account {{NewUser}} granted a role within an hour of creation",
+                                                    "alertDescriptionFormat":  "Account {{NewUser}} was created at {{CreatedTime}} and granted a directory role by {{Actor}} within the following hour."
+                                                },
+                       "severity":  "High",
+                       "query":  "let NewAccounts = AuditLogs\n    | where OperationName =~ \"Add user\" and Result =~ \"success\"\n    | mv-expand TargetResources\n    | extend NewUser = tostring(TargetResources.userPrincipalName)\n    | where isnotempty(NewUser)\n    | project NewUser, CreatedTime = TimeGenerated;\nAuditLogs\n| where TimeGenerated \u003e ago(1h)\n| where OperationName =~ \"Add member to role\" and Result =~ \"success\"\n| mv-expand TargetResources\n| extend NewUser = tostring(TargetResources.userPrincipalName)\n| where isnotempty(NewUser)\n| extend Actor = tostring(InitiatedBy.user.userPrincipalName)\n| join kind=inner (NewAccounts) on NewUser\n| where TimeGenerated \u003e CreatedTime\n| where datetime_diff(\"minute\", TimeGenerated, CreatedTime) \u003c= 60\n| project TimeGenerated, Actor, NewUser, CreatedTime, OperationName, CorrelationId\n| extend Account = NewUser\n",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,38 +55,9 @@
                        "techniques":  [
                                           "T1136"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Actor":  "Actor",
-                                             "NewAccount":  "NewUser",
-                                             "Operation":  "OperationName",
-                                             "AccountCreated":  "CreatedTime"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "New account {{NewUser}} granted a role within an hour of creation",
-                                                    "alertDescriptionFormat":  "Account {{NewUser}} was created at {{CreatedTime}} and granted a directory role by {{Actor}} within the following hour."
-                                                }
+                       "displayName":  "Entra - New Account Granted Role Within One Hour",
+                       "enabled":  true,
+                       "description":  "DETECTS\nAn account created and then assigned a directory role within sixty minutes, correlating two AuditLogs event types.\n\nWHY IT MATTERS\nThis sequence is the classic attacker persistence pattern: create an innocuous account, elevate it, then use it as a durable backdoor that survives remediation of the originally compromised identity. Legitimate provisioning almost always separates account creation from role assignment by an approval step, so the compressed timeline is itself the signal (MITRE T1136, Create Account).\n\nTRIAGE\n1. Identify the new account naming. Attackers often mimic service accounts or existing user patterns.\n2. Determine what role was granted and by whom.\n3. Confirm whether an onboarding request exists for this person.\n4. Check whether the new account has signed in, and from where.\n5. If unauthorized: disable the account immediately, then investigate the creating identity as compromised.\n\nFALSE POSITIVES\nAutomated provisioning pipelines that create and entitle accounts in one workflow, and admin-created service accounts. Tune by excluding the provisioning service principal.\n\nSOURCE\nAuditLogs\n\nTUNING HISTORY (2026-08-02)\nThe role-grant side of the query is now anchored to the current evaluation window with\nwhere TimeGenerated \u003e ago(1h), matching queryFrequency. Without that anchor the rule\nre-discovered the same historical AuditLogs pair on every hourly run for as long as it\nremained inside the 1-day queryPeriod, producing 24 alerts per account for one real event\n- 48 alerts for the two break-glass accounts, still firing 23 hours later. The NewAccounts\nsubquery deliberately keeps the full queryPeriod lookback so an account created up to a day\nearlier is still correlated; only the trigger side is windowed. Incident grouping is now\nkeyed on Account over a 1-day lookback.",
+                       "alertRuleTemplateName":  null
                    }
 }

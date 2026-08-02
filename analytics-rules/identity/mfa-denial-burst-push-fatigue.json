@@ -1,16 +1,47 @@
-﻿{
+{
     "name":  "c0de0026-0000-4000-8000-000000000026",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Identity - MFA Denial Burst (Push Fatigue)",
-                       "description":  "DETECTS\nFive or more MFA challenge failures or denials for one account within an hour.\n\nWHY IT MATTERS\nMFA fatigue means the attacker already has the correct password and is repeatedly triggering push prompts hoping the user approves one out of annoyance or confusion. The repeated denials are the user correctly refusing, which makes this a rare case of the alert firing while the defence is still holding (MITRE T1621, Multi-Factor Authentication Request Generation).\n\nTRIAGE\n1. Treat the password as already compromised regardless of MFA outcome.\n2. Contact the user immediately and instruct them not to approve any prompt.\n3. Check whether any approval eventually succeeded. If so, escalate to full compromise handling.\n4. Reset the password and revoke sessions to stop the prompt generation at source.\n5. Move the user to number matching or FIDO2 if still on simple push approval.\n\nFALSE POSITIVES\nA user with a broken or newly replaced authenticator app, or poor mobile connectivity causing timeouts. Confirm by checking whether prompts originate from the user own IP.\n\nSOURCE\nSigninLogs",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "SigninLogs\n| where ResultType in (\"500121\", \"50074\", \"50076\", \"50072\")\n| summarize MfaFailures = count(), SourceIPs = make_set(IPAddress, 10), Apps = make_set(AppDisplayName, 10),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by UserPrincipalName\n| where MfaFailures \u003e= 5\n| extend TimeGenerated = EndTime, Account = UserPrincipalName",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Applications":  "Apps",
+                                             "SourceIPs":  "SourceIPs",
+                                             "User":  "UserPrincipalName",
+                                             "MfaFailures":  "MfaFailures"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "severity":  "High",
+                       "query":  "SigninLogs\n| where ResultType in (\"500121\", \"50074\", \"50076\", \"50072\")\n| summarize MfaFailures = count(), SourceIPs = make_set(IPAddress, 10), Apps = make_set(AppDisplayName, 10),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by UserPrincipalName\n| where MfaFailures \u003e= 5\n| extend TimeGenerated = EndTime, Account = UserPrincipalName",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,34 +50,9 @@
                        "techniques":  [
                                           "T1621"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "SingleAlert"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Applications":  "Apps",
-                                             "SourceIPs":  "SourceIPs",
-                                             "User":  "UserPrincipalName",
-                                             "MfaFailures":  "MfaFailures"
-                                         }
+                       "displayName":  "Identity - MFA Denial Burst (Push Fatigue)",
+                       "enabled":  true,
+                       "description":  "DETECTS\nFive or more MFA challenge failures or denials for one account within an hour.\n\nWHY IT MATTERS\nMFA fatigue means the attacker already has the correct password and is repeatedly triggering push prompts hoping the user approves one out of annoyance or confusion. The repeated denials are the user correctly refusing, which makes this a rare case of the alert firing while the defence is still holding (MITRE T1621, Multi-Factor Authentication Request Generation).\n\nTRIAGE\n1. Treat the password as already compromised regardless of MFA outcome.\n2. Contact the user immediately and instruct them not to approve any prompt.\n3. Check whether any approval eventually succeeded. If so, escalate to full compromise handling.\n4. Reset the password and revoke sessions to stop the prompt generation at source.\n5. Move the user to number matching or FIDO2 if still on simple push approval.\n\nFALSE POSITIVES\nA user with a broken or newly replaced authenticator app, or poor mobile connectivity causing timeouts. Confirm by checking whether prompts originate from the user own IP.\n\nSOURCE\nSigninLogs",
+                       "alertRuleTemplateName":  null
                    }
 }

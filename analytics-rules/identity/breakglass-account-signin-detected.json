@@ -1,9 +1,9 @@
 {
-    "name":  "b1a1f002-0000-4000-8000-000000000002",
+    "name":  "b1a1f006-0000-4000-8000-000000000006",
     "kind":  "Scheduled",
     "properties":  {
-                       "queryFrequency":  "PT1H",
-                       "queryPeriod":  "PT1H",
+                       "queryFrequency":  "PT5M",
+                       "queryPeriod":  "PT5M",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
                        "eventGroupingSettings":  {
@@ -24,10 +24,9 @@
                                                                                }
                                                  },
                        "customDetails":  {
-                                             "TargetNSG":  "Resource",
-                                             "Caller":  "Caller",
-                                             "Operation":  "OperationNameValue",
-                                             "SourceIP":  "CallerIpAddress"
+                                             "ResultCode":  "ResultType",
+                                             "SourceIP":  "IPAddress",
+                                             "Application":  "AppDisplayName"
                                          },
                        "entityMappings":  [
                                               {
@@ -50,22 +49,22 @@
                                               }
                                           ],
                        "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "NSG {{Resource}} changed by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} on network security group {{Resource}}."
+                                                    "alertDisplayNameFormat":  "Break-glass sign-in: {{UserPrincipalName}}",
+                                                    "alertDescriptionFormat":  "Sign-in from {{IPAddress}} via {{AppDisplayName}}, result {{ResultType}}."
                                                 },
-                       "severity":  "Medium",
-                       "query":  "AzureActivity\n| where ResourceProviderValue =~ \"MICROSOFT.NETWORK\"\n| where OperationNameValue has \"NETWORKSECURITYGROUPS\"\n| where OperationNameValue has_any (\"WRITE\", \"DELETE\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
+                       "severity":  "High",
+                       "query":  "SigninLogs\n| where UserPrincipalName startswith \"breakglass\"\n| project TimeGenerated, UserPrincipalName, IPAddress, ResultType, AppDisplayName, Location\n| extend Account = UserPrincipalName, IP = IPAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
-                                       "DefenseEvasion"
+                                       "Persistence"
                                    ],
                        "techniques":  [
-                                          "T1562"
+                                          "T1078"
                                       ],
-                       "displayName":  "Azure - Network Security Group Modified or Deleted",
+                       "displayName":  "Identity - Break-Glass Account Sign-in Detected",
                        "enabled":  true,
-                       "description":  "DETECTS\nSuccessful write or delete against a Network Security Group or its rules.\n\nWHY IT MATTERS\nNSGs are the primary network boundary in Azure. An attacker with control-plane access modifies them to open management ports (RDP 3389, SSH 22), enable exfiltration, or permit inbound C2. Deleting one removes the boundary entirely (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Determine what the new rule allows. Any source of 0.0.0.0/0 or Internet is critical.\n2. Confirm the Caller is authorized to change network controls.\n3. If a management port is now open to the internet, treat as High regardless of caller.\n4. Correlate the Caller across AzureActivity and SigninLogs to establish how access was obtained.\n5. If unauthorized: revert the rule, then investigate the identity.\n\nFALSE POSITIVES\nInfrastructure-as-code deployments and approved firewall change windows. Tune by excluding deployment service principals.\n\nSOURCE\nAzureActivity",
+                       "description":  "DETECTS\nAny sign-in attempt, successful or failed, by an account whose UserPrincipalName starts with \"breakglass\".\n\nWHY IT MATTERS\nBreak-glass accounts exist solely as emergency access when normal admin paths fail. There is no legitimate scenario where they sign in during routine operations - every hit is either a scheduled test (expected and announced) or a genuine emergency/compromise (needs immediate attention). This is a rare high-fidelity rule: it should almost never fire, and when it does, the response is immediate investigation, not triage.\n\nTRIAGE\n1. Confirm whether this is an announced quarterly test or unplanned.\n2. If unplanned, check the source IP and location - there is no \"normal\" baseline for this account, so any sign-in is worth understanding.\n3. Check ResultType - a successful sign-in during a genuine emergency confirms the account works; a successful sign-in with no known cause is a compromise investigation.\n4. Verify the account was used only for its intended emergency scope, then confirm the emergency root cause is resolved.\n5. Rotate the account password after every real use, scheduled or not.\n\nFALSE POSITIVES\nNone by design. Scheduled quarterly tests should be announced in advance so the resulting alert is expected, not suppressed.\n\nSOURCE\nSigninLogs",
                        "alertRuleTemplateName":  null
                    }
 }

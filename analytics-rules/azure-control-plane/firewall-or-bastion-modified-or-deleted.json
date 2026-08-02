@@ -1,16 +1,60 @@
-﻿{
+{
     "name":  "c0de0020-0000-4000-8000-000000000020",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - Firewall or Bastion Modified or Deleted",
-                       "description":  "DETECTS\nModification or deletion of an Azure Firewall, firewall policy, or Bastion host.\n\nWHY IT MATTERS\nThese are the perimeter and the sanctioned administrative access path. Weakening firewall rules opens egress for C2 and exfiltration; deleting Bastion pushes administrators toward exposing RDP and SSH directly, which is exactly the outcome an attacker wants (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Determine whether a rule was relaxed, and specifically whether new outbound destinations or inbound sources were permitted.\n2. Confirm the Caller is authorized to manage perimeter controls and a change window is open.\n3. Check for traffic matching any newly permitted rule immediately after the change.\n4. If Bastion was deleted, verify no public IPs or open management ports were introduced as a replacement.\n5. If unauthorized: revert, then investigate the identity and any traffic allowed during the gap.\n\nFALSE POSITIVES\nApproved firewall rule changes and IaC-managed policy updates.\n\nSOURCE\nAzureActivity",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue has_any (\"MICROSOFT.NETWORK/AZUREFIREWALLS\", \"MICROSOFT.NETWORK/BASTIONHOSTS\", \"MICROSOFT.NETWORK/FIREWALLPOLICIES\")\n| where OperationNameValue has_any (\"DELETE\", \"WRITE\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Operation":  "OperationNameValue",
+                                             "Caller":  "Caller",
+                                             "SecurityControl":  "Resource",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Firewall or Bastion changed: {{Resource}} by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} on perimeter control {{Resource}}."
+                                                },
+                       "severity":  "High",
+                       "query":  "AzureActivity\n| where OperationNameValue has_any (\"MICROSOFT.NETWORK/AZUREFIREWALLS\", \"MICROSOFT.NETWORK/BASTIONHOSTS\", \"MICROSOFT.NETWORK/FIREWALLPOLICIES\")\n| where OperationNameValue has_any (\"DELETE\", \"WRITE\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,47 +63,9 @@
                        "techniques":  [
                                           "T1562"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Operation":  "OperationNameValue",
-                                             "Caller":  "Caller",
-                                             "SecurityControl":  "Resource",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Firewall or Bastion changed: {{Resource}} by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} on perimeter control {{Resource}}."
-                                                }
+                       "displayName":  "Azure - Firewall or Bastion Modified or Deleted",
+                       "enabled":  true,
+                       "description":  "DETECTS\nModification or deletion of an Azure Firewall, firewall policy, or Bastion host.\n\nWHY IT MATTERS\nThese are the perimeter and the sanctioned administrative access path. Weakening firewall rules opens egress for C2 and exfiltration; deleting Bastion pushes administrators toward exposing RDP and SSH directly, which is exactly the outcome an attacker wants (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Determine whether a rule was relaxed, and specifically whether new outbound destinations or inbound sources were permitted.\n2. Confirm the Caller is authorized to manage perimeter controls and a change window is open.\n3. Check for traffic matching any newly permitted rule immediately after the change.\n4. If Bastion was deleted, verify no public IPs or open management ports were introduced as a replacement.\n5. If unauthorized: revert, then investigate the identity and any traffic allowed during the gap.\n\nFALSE POSITIVES\nApproved firewall rule changes and IaC-managed policy updates.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

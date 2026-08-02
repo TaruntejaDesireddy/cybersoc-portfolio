@@ -1,16 +1,60 @@
-﻿{
+{
     "name":  "c0de0007-0000-4000-8000-000000000007",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - RBAC Role Assignment Removed",
-                       "description":  "DETECTS\nRemoval of an Azure RBAC role assignment.\n\nWHY IT MATTERS\nAttackers strip access from legitimate administrators to slow down response and maintain exclusive control, and remove their own temporary grants to cover tracks (MITRE T1531, Account Access Removal). Mass removal is a hallmark of a destructive or extortion-stage intrusion.\n\nTRIAGE\n1. Determine whose access was removed and whether they are a responder or admin.\n2. Check whether multiple removals occurred in a short window, which indicates lockout rather than cleanup.\n3. Confirm the Caller is authorized and a deprovisioning ticket exists.\n4. Correlate with recent role assignment creations by the same Caller.\n5. If unauthorized: restore access for affected admins first, then contain the Caller.\n\nFALSE POSITIVES\nNormal offboarding and access reviews.\n\nSOURCE\nAzureActivity",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, SubscriptionId\n| extend Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Scope":  "Resource",
+                                             "Subscription":  "SubscriptionId",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Azure RBAC role assignment removed by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deleted a role assignment at scope {{Resource}}."
+                                                },
+                       "severity":  "Medium",
+                       "query":  "AzureActivity\n| where OperationNameValue =~ \"MICROSOFT.AUTHORIZATION/ROLEASSIGNMENTS/DELETE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, SubscriptionId\n| extend Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,47 +64,9 @@
                        "techniques":  [
                                           "T1531"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Scope":  "Resource",
-                                             "Subscription":  "SubscriptionId",
-                                             "Caller":  "Caller",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Azure RBAC role assignment removed by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deleted a role assignment at scope {{Resource}}."
-                                                }
+                       "displayName":  "Azure - RBAC Role Assignment Removed",
+                       "enabled":  true,
+                       "description":  "DETECTS\nRemoval of an Azure RBAC role assignment.\n\nWHY IT MATTERS\nAttackers strip access from legitimate administrators to slow down response and maintain exclusive control, and remove their own temporary grants to cover tracks (MITRE T1531, Account Access Removal). Mass removal is a hallmark of a destructive or extortion-stage intrusion.\n\nTRIAGE\n1. Determine whose access was removed and whether they are a responder or admin.\n2. Check whether multiple removals occurred in a short window, which indicates lockout rather than cleanup.\n3. Confirm the Caller is authorized and a deprovisioning ticket exists.\n4. Correlate with recent role assignment creations by the same Caller.\n5. If unauthorized: restore access for affected admins first, then contain the Caller.\n\nFALSE POSITIVES\nNormal offboarding and access reviews.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

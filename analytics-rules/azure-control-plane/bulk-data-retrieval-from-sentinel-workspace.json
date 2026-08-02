@@ -1,14 +1,11 @@
 {
-    "name":  "c0de0030-0000-4000-8000-000000000030",
+    "name":  "c3e9f5a4-7da6-4f83-9a29-5b4cae8d3f62",
     "kind":  "Scheduled",
     "properties":  {
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "SingleAlert"
-                                                 },
                        "incidentConfiguration":  {
                                                      "createIncident":  true,
                                                      "groupingConfiguration":  {
@@ -23,36 +20,31 @@
                                                                                    "groupByCustomDetails":  null
                                                                                }
                                                  },
-                       "customDetails":  {
-                                             "SourceIPs":  "SourceIPs",
-                                             "BlockedAttempts":  "BlockedAttempts",
-                                             "User":  "UserPrincipalName",
-                                             "Applications":  "Apps"
-                                         },
                        "entityMappings":  [
                                               {
                                                   "entityType":  "Account",
                                                   "fieldMappings":  [
                                                                         {
                                                                             "identifier":  "FullName",
-                                                                            "columnName":  "Account"
+                                                                            "columnName":  "AADEmail"
                                                                         }
                                                                     ]
                                               }
                                           ],
-                       "severity":  "Medium",
-                       "query":  "SigninLogs\n| where ConditionalAccessStatus =~ \"failure\"\n| summarize BlockedAttempts = count(), Apps = make_set(AppDisplayName, 10), SourceIPs = make_set(IPAddress, 10),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by UserPrincipalName\n| where BlockedAttempts \u003e= 5\n| extend TimeGenerated = EndTime, Account = UserPrincipalName",
+                       "severity":  "Low",
+                       "query":  "LAQueryLogs | where ResponseCode == 200 | where isnotempty(AADEmail) | summarize QueryCount = count(), TotalRows = sum(ResponseRowCount), TotalScannedGB = round(sum(ScannedGB), 3), DistinctQueries = dcount(QueryThumbprint), SampleQueries = make_set(QueryText, 5), StartTime = min(TimeGenerated), EndTime = max(TimeGenerated) by AADEmail, RequestClientApp | where TotalRows \u003e= 50000 or TotalScannedGB \u003e= 1.0 | extend TimeGenerated = EndTime",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
-                                       "DefenseEvasion"
+                                       "Collection",
+                                       "Exfiltration"
                                    ],
                        "techniques":  [
-                                          "T1562"
+                                          "T1213"
                                       ],
-                       "displayName":  "Identity - Conditional Access Block Burst",
+                       "displayName":  "Exfiltration - Bulk Data Retrieval from Sentinel Workspace",
                        "enabled":  true,
-                       "description":  "DETECTS\nFive or more sign-in attempts for one account blocked by Conditional Access policy within an hour.\n\nWHY IT MATTERS\nRepeated Conditional Access failures mean something holds a valid credential but cannot satisfy the access conditions, such as device compliance, location, or client type. An attacker with a stolen password probing for a policy gap produces exactly this pattern, often varying client and application to find an unprotected path (MITRE T1562, Impair Defenses).\n\nTRIAGE\n1. Identify which policy is blocking and on what grounds.\n2. Look for variation in AppDisplayName or ClientAppUsed across the attempts. Systematic variation indicates deliberate probing rather than a stuck client.\n3. Verify whether any attempt eventually succeeded through a different path.\n4. Confirm with the user whether they are struggling with a legitimate access problem.\n5. If probing is indicated: reset the credential, since the password is presumably known.\n\nFALSE POSITIVES\nA user on a newly rebuilt or non-compliant device repeatedly retrying, which is common after device refresh. These show a single consistent failure reason.\n\nSOURCE\nSigninLogs",
+                       "description":  "A single identity pulled an unusually large volume of data out of this Sentinel workspace within one hour, measured by rows returned or gigabytes scanned. This detects the SIEM itself being used as the exfiltration source - a compromised analyst session, a stolen token, or an insider staging log data. Relevant here because three soc-analyst reader accounts hold query access to this workspace. THRESHOLDS ARE PLACEHOLDERS: 50,000 rows or 1 GB scanned per hour is far above anything this quiet lab produces normally, so tune both upward once you have a real baseline of your own query habits.",
                        "alertRuleTemplateName":  null
                    }
 }

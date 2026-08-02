@@ -1,0 +1,45 @@
+{
+    "name":  "b2d8e4f3-6c95-4e72-8f18-4a3b9d7c2e51",
+    "kind":  "Scheduled",
+    "properties":  {
+                       "queryFrequency":  "PT1H",
+                       "queryPeriod":  "PT1H",
+                       "triggerOperator":  "GreaterThan",
+                       "triggerThreshold":  0,
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "RecipientId"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "severity":  "Medium",
+                       "query":  "ACSEmailStatusUpdateOperational | where isnotempty(DeliveryStatus) | where DeliveryStatus !in~ (\"Delivered\", \"Suppressed\", \"Expanded\") | project TimeGenerated, DeliveryStatus, FailureReason, FailureMessage, IsHardBounce, RecipientId, SmtpStatusCode, EnhancedSmtpStatusCode, SenderDomain, RecipientMailServerHostName, CorrelationId",
+                       "suppressionDuration":  "PT5H",
+                       "suppressionEnabled":  false,
+                       "tactics":  null,
+                       "techniques":  null,
+                       "displayName":  "Health - Sentinel Report Email Failed to Deliver",
+                       "enabled":  true,
+                       "description":  "An email sent through Azure Communication Services did not reach Delivered status. la-incident-report delivers the Sentinel incident digest this way, so a bounce or quarantine means a report you believe was sent never arrived. Suppressed is excluded because it reflects the ACS suppression list rather than a delivery fault.",
+                       "alertRuleTemplateName":  null
+                   }
+}

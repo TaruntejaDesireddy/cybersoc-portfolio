@@ -1,16 +1,69 @@
-﻿{
+{
     "name":  "c0de0009-0000-4000-8000-000000000009",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - VM Extension Deployed",
-                       "description":  "DETECTS\nInstallation or update of a VM extension, most notably CustomScriptExtension.\n\nWHY IT MATTERS\nThe Custom Script Extension downloads and runs an arbitrary payload on the VM with full privileges, and persists across reboots. It is a favoured technique for both initial execution and durable persistence from the control plane (MITRE T1059). Attackers also use extensions to disable monitoring agents.\n\nTRIAGE\n1. Identify the extension type. CustomScriptExtension and RunCommand warrant immediate scrutiny.\n2. Extract the script URI or inline command from the operation Properties.\n3. Confirm the Caller is authorized and the deployment matches a known configuration baseline.\n4. Inspect the VM for the downloaded payload and any resulting processes.\n5. If unauthorized: remove the extension, isolate the host, and hunt for persistence.\n\nFALSE POSITIVES\nRoutine agent deployment (Azure Monitor Agent, Defender, DSC) by IaC pipelines. Tune by excluding known agent publishers.\n\nSOURCE\nAzureActivity",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.COMPUTE/VIRTUALMACHINES/EXTENSIONS\"\n| where OperationNameValue has \"WRITE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress, HostName = Resource",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Operation":  "OperationNameValue",
+                                             "TargetVM":  "Resource",
+                                             "Caller":  "Caller",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "Host",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "VM extension deployed to {{Resource}} by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deployed or updated an extension on virtual machine {{Resource}}."
+                                                },
+                       "severity":  "Medium",
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.COMPUTE/VIRTUALMACHINES/EXTENSIONS\"\n| where OperationNameValue has \"WRITE\"\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress, HostName = Resource",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -20,56 +73,9 @@
                        "techniques":  [
                                           "T1059"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "HostName",
-                                                                            "columnName":  "HostName"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Host"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Operation":  "OperationNameValue",
-                                             "TargetVM":  "Resource",
-                                             "Caller":  "Caller",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "VM extension deployed to {{Resource}} by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} from {{CallerIpAddress}} deployed or updated an extension on virtual machine {{Resource}}."
-                                                }
+                       "displayName":  "Azure - VM Extension Deployed",
+                       "enabled":  true,
+                       "description":  "DETECTS\nInstallation or update of a VM extension, most notably CustomScriptExtension.\n\nWHY IT MATTERS\nThe Custom Script Extension downloads and runs an arbitrary payload on the VM with full privileges, and persists across reboots. It is a favoured technique for both initial execution and durable persistence from the control plane (MITRE T1059). Attackers also use extensions to disable monitoring agents.\n\nTRIAGE\n1. Identify the extension type. CustomScriptExtension and RunCommand warrant immediate scrutiny.\n2. Extract the script URI or inline command from the operation Properties.\n3. Confirm the Caller is authorized and the deployment matches a known configuration baseline.\n4. Inspect the VM for the downloaded payload and any resulting processes.\n5. If unauthorized: remove the extension, isolate the host, and hunt for persistence.\n\nFALSE POSITIVES\nRoutine agent deployment (Azure Monitor Agent, Defender, DSC) by IaC pipelines. Tune by excluding known agent publishers.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }

@@ -1,16 +1,56 @@
-﻿{
+{
     "name":  "c0de0053-0000-4000-8000-000000000053",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Linux - SSH Brute Force Against Host",
-                       "description":  "DETECTS\nTen or more failed SSH authentications from a single source IP against one Linux host within an hour, parsed from sshd syslog messages.\n\nWHY IT MATTERS\nSSH brute force is the most common attack against any internet-reachable Linux host, and success yields immediate interactive shell access (MITRE T1110, Brute Force). The source IP is extracted from the message text because syslog provides no structured field for it.\n\nTRIAGE\n1. Check whether any successful authentication followed from the same source. The companion rule covers this explicitly.\n2. Determine whether the host should be reachable from the source network at all. Often the real finding is unintended exposure.\n3. Review whether the targeted usernames are valid or generic (root, admin, test), which distinguishes targeted from opportunistic.\n4. Confirm SSH configuration: key-only authentication and root login disabled.\n5. Block the source and restrict SSH exposure via NSG or firewall.\n\nFALSE POSITIVES\nMisconfigured automation or a monitoring agent with stale credentials retrying. These originate from internal addresses and target one consistent account.\n\nSOURCE\nSyslog",
-                       "severity":  "Medium",
-                       "enabled":  true,
-                       "query":  "Syslog\n| where ProcessName =~ \"sshd\"\n| where SyslogMessage has_any (\"Failed password\", \"Invalid user\", \"authentication failure\", \"Failed publickey\")\n| extend SourceIP = extract(@\"from ([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\", 1, SyslogMessage)\n| where isnotempty(SourceIP)\n| summarize FailedAttempts = count(), Messages = make_set(SyslogMessage, 5),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Computer, SourceIP\n| where FailedAttempts \u003e= 10\n| extend TimeGenerated = EndTime, IP = SourceIP, HostName = Computer",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "SingleAlert"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Host"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "FailedAttempts":  "FailedAttempts",
+                                             "SourceIP":  "SourceIP",
+                                             "TargetHost":  "Computer",
+                                             "SampleMessages":  "Messages"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Host",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "HostName",
+                                                                            "columnName":  "HostName"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "severity":  "Medium",
+                       "query":  "Syslog\n| where ProcessName =~ \"sshd\"\n| where SyslogMessage has_any (\"Failed password\", \"Invalid user\", \"authentication failure\", \"Failed publickey\")\n| extend SourceIP = extract(@\"from ([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\", 1, SyslogMessage)\n| where isnotempty(SourceIP)\n| summarize FailedAttempts = count(), Messages = make_set(SyslogMessage, 5),\n    StartTime = min(TimeGenerated), EndTime = max(TimeGenerated)\n    by Computer, SourceIP\n| where FailedAttempts \u003e= 10\n| extend TimeGenerated = EndTime, IP = SourceIP, HostName = Computer",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,43 +59,9 @@
                        "techniques":  [
                                           "T1110"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "SingleAlert"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "HostName",
-                                                                            "columnName":  "HostName"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Host"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "FailedAttempts":  "FailedAttempts",
-                                             "SourceIP":  "SourceIP",
-                                             "TargetHost":  "Computer",
-                                             "SampleMessages":  "Messages"
-                                         }
+                       "displayName":  "Linux - SSH Brute Force Against Host",
+                       "enabled":  true,
+                       "description":  "DETECTS\nTen or more failed SSH authentications from a single source IP against one Linux host within an hour, parsed from sshd syslog messages.\n\nWHY IT MATTERS\nSSH brute force is the most common attack against any internet-reachable Linux host, and success yields immediate interactive shell access (MITRE T1110, Brute Force). The source IP is extracted from the message text because syslog provides no structured field for it.\n\nTRIAGE\n1. Check whether any successful authentication followed from the same source. The companion rule covers this explicitly.\n2. Determine whether the host should be reachable from the source network at all. Often the real finding is unintended exposure.\n3. Review whether the targeted usernames are valid or generic (root, admin, test), which distinguishes targeted from opportunistic.\n4. Confirm SSH configuration: key-only authentication and root login disabled.\n5. Block the source and restrict SSH exposure via NSG or firewall.\n\nFALSE POSITIVES\nMisconfigured automation or a monitoring agent with stale credentials retrying. These originate from internal addresses and target one consistent account.\n\nSOURCE\nSyslog",
+                       "alertRuleTemplateName":  null
                    }
 }

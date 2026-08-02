@@ -1,16 +1,60 @@
-﻿{
+{
     "name":  "c0de0004-0000-4000-8000-000000000004",
     "kind":  "Scheduled",
     "properties":  {
-                       "displayName":  "Azure - Key Vault Deleted or Purged",
-                       "description":  "DETECTS\nDeletion or purge of a Key Vault. Purge is unrecoverable even with soft-delete enabled.\n\nWHY IT MATTERS\nDestroys the keys protecting encrypted data, which can render storage and databases permanently unreadable (MITRE T1485, Data Destruction). A purge specifically defeats the soft-delete safety net, so it is rarely accidental and rarely legitimate.\n\nTRIAGE\n1. Distinguish DELETE (recoverable during retention) from PURGE (permanent).\n2. Confirm the Caller and whether a decommission change request exists.\n3. Identify what consumed keys from this vault and whether services are now failing.\n4. If soft-deleted and unauthorized, recover the vault immediately before the retention window closes.\n5. Escalate to High priority incident if PURGE and unapproved.\n\nFALSE POSITIVES\nPlanned decommissioning and lab cleanup.\n\nSOURCE\nAzureActivity",
-                       "severity":  "High",
-                       "enabled":  true,
-                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.KEYVAULT/VAULTS\"\n| where OperationNameValue has_any (\"DELETE\", \"PURGE\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
                        "queryFrequency":  "PT1H",
                        "queryPeriod":  "PT1H",
                        "triggerOperator":  "GreaterThan",
                        "triggerThreshold":  0,
+                       "eventGroupingSettings":  {
+                                                     "aggregationKind":  "AlertPerResult"
+                                                 },
+                       "incidentConfiguration":  {
+                                                     "createIncident":  true,
+                                                     "groupingConfiguration":  {
+                                                                                   "enabled":  true,
+                                                                                   "reopenClosedIncident":  false,
+                                                                                   "lookbackDuration":  "P1D",
+                                                                                   "matchingMethod":  "Selected",
+                                                                                   "groupByEntities":  [
+                                                                                                           "Account"
+                                                                                                       ],
+                                                                                   "groupByAlertDetails":  null,
+                                                                                   "groupByCustomDetails":  null
+                                                                               }
+                                                 },
+                       "customDetails":  {
+                                             "Operation":  "OperationNameValue",
+                                             "Caller":  "Caller",
+                                             "KeyVault":  "Resource",
+                                             "SourceIP":  "CallerIpAddress"
+                                         },
+                       "entityMappings":  [
+                                              {
+                                                  "entityType":  "Account",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "FullName",
+                                                                            "columnName":  "Account"
+                                                                        }
+                                                                    ]
+                                              },
+                                              {
+                                                  "entityType":  "IP",
+                                                  "fieldMappings":  [
+                                                                        {
+                                                                            "identifier":  "Address",
+                                                                            "columnName":  "IP"
+                                                                        }
+                                                                    ]
+                                              }
+                                          ],
+                       "alertDetailsOverride":  {
+                                                    "alertDisplayNameFormat":  "Key Vault {{Resource}} deleted or purged by {{Caller}}",
+                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} on Key Vault {{Resource}}."
+                                                },
+                       "severity":  "High",
+                       "query":  "AzureActivity\n| where OperationNameValue has \"MICROSOFT.KEYVAULT/VAULTS\"\n| where OperationNameValue has_any (\"DELETE\", \"PURGE\")\n| where ActivityStatusValue =~ \"Success\"\n| project TimeGenerated, Caller, CallerIpAddress, Resource, ResourceGroup, OperationNameValue\n| extend Account = Caller, IP = CallerIpAddress",
                        "suppressionDuration":  "PT5H",
                        "suppressionEnabled":  false,
                        "tactics":  [
@@ -19,47 +63,9 @@
                        "techniques":  [
                                           "T1485"
                                       ],
-                       "incidentConfiguration":  {
-                                                     "createIncident":  true,
-                                                     "groupingConfiguration":  {
-                                                                                   "enabled":  false,
-                                                                                   "reopenClosedIncident":  false,
-                                                                                   "lookbackDuration":  "PT5H",
-                                                                                   "matchingMethod":  "AllEntities"
-                                                                               }
-                                                 },
-                       "eventGroupingSettings":  {
-                                                     "aggregationKind":  "AlertPerResult"
-                                                 },
-                       "entityMappings":  [
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "FullName",
-                                                                            "columnName":  "Account"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "Account"
-                                              },
-                                              {
-                                                  "fieldMappings":  [
-                                                                        {
-                                                                            "identifier":  "Address",
-                                                                            "columnName":  "IP"
-                                                                        }
-                                                                    ],
-                                                  "entityType":  "IP"
-                                              }
-                                          ],
-                       "customDetails":  {
-                                             "Operation":  "OperationNameValue",
-                                             "Caller":  "Caller",
-                                             "KeyVault":  "Resource",
-                                             "SourceIP":  "CallerIpAddress"
-                                         },
-                       "alertDetailsOverride":  {
-                                                    "alertDisplayNameFormat":  "Key Vault {{Resource}} deleted or purged by {{Caller}}",
-                                                    "alertDescriptionFormat":  "{{Caller}} performed {{OperationNameValue}} on Key Vault {{Resource}}."
-                                                }
+                       "displayName":  "Azure - Key Vault Deleted or Purged",
+                       "enabled":  true,
+                       "description":  "DETECTS\nDeletion or purge of a Key Vault. Purge is unrecoverable even with soft-delete enabled.\n\nWHY IT MATTERS\nDestroys the keys protecting encrypted data, which can render storage and databases permanently unreadable (MITRE T1485, Data Destruction). A purge specifically defeats the soft-delete safety net, so it is rarely accidental and rarely legitimate.\n\nTRIAGE\n1. Distinguish DELETE (recoverable during retention) from PURGE (permanent).\n2. Confirm the Caller and whether a decommission change request exists.\n3. Identify what consumed keys from this vault and whether services are now failing.\n4. If soft-deleted and unauthorized, recover the vault immediately before the retention window closes.\n5. Escalate to High priority incident if PURGE and unapproved.\n\nFALSE POSITIVES\nPlanned decommissioning and lab cleanup.\n\nSOURCE\nAzureActivity",
+                       "alertRuleTemplateName":  null
                    }
 }
