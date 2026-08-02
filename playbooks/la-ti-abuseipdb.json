@@ -1,0 +1,279 @@
+{
+  "comments": [
+    "la-ti-abuseipdb v2 - AbuseIPDB blacklist to Microsoft Sentinel threat intelligence.",
+    "",
+    "Pulls the AbuseIPDB blacklist once daily and publishes each IP as a STIX 2.1",
+    "indicator via the Sentinel threat-intelligence upload API. Indicators land in the",
+    "ThreatIntelIndicators table with ObservableKey 'ipv4-addr:value', which is what the",
+    "TI-matching analytics rules in this repo already join against.",
+    "",
+    "DESIGN NOTES",
+    "- Uses plain HTTP actions with ManagedServiceIdentity auth rather than the Azure Key",
+    "  Vault and Microsoft Sentinel managed connectors. This avoids creating any API",
+    "  connection resources, so the playbook needs no interactive OAuth consent step and",
+    "  deploys cleanly from source.",
+    "- runtimeConfiguration.secureData keeps the API key out of run history: secure",
+    "  OUTPUTS on the Key Vault read (the response body is the secret) and secure INPUTS",
+    "  on the AbuseIPDB call (the key travels in a request header). Without these, anyone",
+    "  with Logic App read access can recover the key from a run.",
+    "- valid_until is deliberately short (7 days). AbuseIPDB confidence scores decay and",
+    "  addresses get reassigned, so a long TTL produces false positives against stale",
+    "  infrastructure. The daily run refreshes what is still listed.",
+    "- Get_Blacklist has retryPolicy 'none' on purpose. The AbuseIPDB free tier allows",
+    "  only about 5 blacklist requests per day, so the default 4 exponential retries",
+    "  would burn a day's quota on a single bad afternoon. A failed pull waits for",
+    "  tomorrow instead.",
+    "- Upload_Stix_Objects keeps exponential retries. That endpoint is Azure-side, is",
+    "  rate limited at 100 requests/minute, and returns 429 under load, so retrying is",
+    "  the correct behaviour there.",
+    "- The upload API accepts a maximum of 100 objects per request, so indicators are",
+    "  chunked and uploaded in batches. For_Each_Batch runs with concurrency 1: batches",
+    "  are small, sequential execution stays far below the 100/minute limit, and a",
+    "  failure is far easier to read in run history.",
+    "",
+    "VERIFIED EMPIRICALLY, NOT ASSUMED (throwaway workflow, run, output inspected)",
+    "- guid() inside a Select is evaluated PER ITEM, so every indicator gets a distinct",
+    "  id. Had it been evaluated once per run, a whole batch would collapse to a single",
+    "  indicator. Ids are non-deterministic, so a repeat run creates new objects for an",
+    "  IP rather than updating the old one; the 7-day TTL is what stops accumulation.",
+    "- The doubled single quotes in the pattern expression produce exactly",
+    "  [ipv4-addr:value = '1.2.3.4'].",
+    "- chunk(array, 100) on 250 items yields 3 batches of 100/100/50, and chunk() on an",
+    "  EMPTY array yields zero batches. That is why no explicit empty-data Condition is",
+    "  needed: an empty blacklist makes For_Each_Batch a no-op rather than sending a",
+    "  malformed upload.",
+    "- confidence is bound with @item() rather than @{item()} so it stays a JSON integer.",
+    "  The upload API requires an integer in 0-100 and rejects a quoted string.",
+    "- trackedProperties were removed. Logic Apps rejects tracked properties that",
+    "  reference other actions ('can only reference its own action's inputs and outputs,",
+    "  trigger inputs and outputs and parameters'), and they only surface anywhere if the",
+    "  workflow exports run diagnostics to Log Analytics. Run_Summary carries the same",
+    "  information into run history instead.",
+    "",
+    "PREREQUISITES",
+    "1. Key Vault secret 'AbuseIPDBApiKey' holding an AbuseIPDB API key.",
+    "2. The workflow's system-assigned identity granted 'Key Vault Secrets User' on the",
+    "   vault.",
+    "3. The same identity granted 'Microsoft Sentinel Contributor' AT WORKSPACE SCOPE.",
+    "   The upload API rejects identities that hold this role only at resource-group",
+    "   scope.",
+    "",
+    "AbuseIPDB free tier: the blacklist endpoint allows roughly 5 requests per day, so do",
+    "not schedule this more often than daily. confidenceMinimum is a subscriber-only",
+    "parameter but its default is already 100, so a free key returns only maximum",
+    "confidence addresses without passing it. limit is NOT subscriber-only and caps at",
+    "10,000 on the free tier.",
+    "",
+    "COST NOTE: measured 916 billed bytes per indicator in ThreatIntelIndicators, and the",
+    "table is billable. At limit=1000 that is roughly 0.9 MB/day.",
+    "",
+    "Set the two parameter defaults below before deploying."
+  ],
+  "location": "<azure-region>",
+  "identity": {
+    "type": "SystemAssigned"
+  },
+  "properties": {
+    "state": "Enabled",
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "2.0.0.0",
+      "parameters": {
+        "keyVaultName": {
+          "type": "string",
+          "defaultValue": "<your-key-vault-name>"
+        },
+        "workspaceId": {
+          "type": "string",
+          "defaultValue": "<your-log-analytics-workspace-guid>"
+        },
+        "blacklistLimit": {
+          "type": "string",
+          "defaultValue": "1000"
+        },
+        "validDays": {
+          "type": "int",
+          "defaultValue": 7
+        },
+        "batchSize": {
+          "type": "int",
+          "defaultValue": 100
+        }
+      },
+      "triggers": {
+        "Daily_0600_Doha": {
+          "type": "Recurrence",
+          "recurrence": {
+            "frequency": "Day",
+            "interval": 1,
+            "timeZone": "Arabian Standard Time",
+            "schedule": {
+              "hours": [
+                6
+              ],
+              "minutes": [
+                0
+              ]
+            }
+          }
+        }
+      },
+      "actions": {
+        "Get_AbuseIPDB_Key": {
+          "type": "Http",
+          "runAfter": {},
+          "inputs": {
+            "method": "GET",
+            "uri": "@{concat('https://', parameters('keyVaultName'), '.vault.azure.net/secrets/AbuseIPDBApiKey?api-version=7.4')}",
+            "authentication": {
+              "type": "ManagedServiceIdentity",
+              "audience": "https://vault.azure.net"
+            },
+            "retryPolicy": {
+              "type": "fixed",
+              "count": 2,
+              "interval": "PT20S"
+            }
+          },
+          "runtimeConfiguration": {
+            "secureData": {
+              "properties": [
+                "outputs"
+              ]
+            }
+          }
+        },
+        "Get_Blacklist": {
+          "type": "Http",
+          "runAfter": {
+            "Get_AbuseIPDB_Key": [
+              "Succeeded"
+            ]
+          },
+          "inputs": {
+            "method": "GET",
+            "uri": "@{concat('https://api.abuseipdb.com/api/v2/blacklist?limit=', parameters('blacklistLimit'))}",
+            "headers": {
+              "Key": "@{body('Get_AbuseIPDB_Key')?['value']}",
+              "Accept": "application/json"
+            },
+            "retryPolicy": {
+              "type": "none"
+            }
+          },
+          "runtimeConfiguration": {
+            "secureData": {
+              "properties": [
+                "inputs"
+              ]
+            }
+          }
+        },
+        "Build_Stix_Objects": {
+          "type": "Select",
+          "runAfter": {
+            "Get_Blacklist": [
+              "Succeeded"
+            ]
+          },
+          "inputs": {
+            "from": "@coalesce(body('Get_Blacklist')?['data'], json('[]'))",
+            "select": {
+              "type": "indicator",
+              "spec_version": "2.1",
+              "id": "@{concat('indicator--', guid())}",
+              "created": "@{utcNow()}",
+              "modified": "@{utcNow()}",
+              "valid_from": "@{utcNow()}",
+              "valid_until": "@{addDays(utcNow(), parameters('validDays'))}",
+              "pattern": "@{concat('[ipv4-addr:value = ''', item()?['ipAddress'], ''']')}",
+              "pattern_type": "stix",
+              "pattern_version": "2.1",
+              "name": "@{concat('AbuseIPDB - ', item()?['ipAddress'])}",
+              "description": "@{concat('AbuseIPDB blacklist entry. Abuse confidence score ', item()?['abuseConfidenceScore'], '. Last reported ', item()?['lastReportedAt'], '.')}",
+              "confidence": "@item()?['abuseConfidenceScore']",
+              "labels": [
+                "abuseipdb",
+                "blacklist"
+              ],
+              "indicator_types": [
+                "malicious-activity"
+              ]
+            }
+          }
+        },
+        "Chunk_Into_Batches": {
+          "type": "Compose",
+          "runAfter": {
+            "Build_Stix_Objects": [
+              "Succeeded"
+            ]
+          },
+          "inputs": "@chunk(body('Build_Stix_Objects'), parameters('batchSize'))"
+        },
+        "For_Each_Batch": {
+          "type": "Foreach",
+          "runAfter": {
+            "Chunk_Into_Batches": [
+              "Succeeded"
+            ]
+          },
+          "foreach": "@outputs('Chunk_Into_Batches')",
+          "runtimeConfiguration": {
+            "concurrency": {
+              "repetitions": 1
+            }
+          },
+          "actions": {
+            "Upload_Stix_Objects": {
+              "type": "Http",
+              "runAfter": {},
+              "inputs": {
+                "method": "POST",
+                "uri": "@{concat('https://api.ti.sentinel.azure.com/workspaces/', parameters('workspaceId'), '/threat-intelligence-stix-objects:upload?api-version=2024-02-01-preview')}",
+                "headers": {
+                  "Content-Type": "application/json"
+                },
+                "body": {
+                  "sourcesystem": "AbuseIPDB",
+                  "stixobjects": "@items('For_Each_Batch')"
+                },
+                "authentication": {
+                  "type": "ManagedServiceIdentity",
+                  "audience": "https://management.azure.com/"
+                },
+                "retryPolicy": {
+                  "type": "exponential",
+                  "count": 4,
+                  "interval": "PT10S",
+                  "maximumInterval": "PT2M",
+                  "minimumInterval": "PT10S"
+                }
+              }
+            }
+          }
+        },
+        "Run_Summary": {
+          "type": "Compose",
+          "runAfter": {
+            "For_Each_Batch": [
+              "Succeeded",
+              "Failed",
+              "Skipped"
+            ]
+          },
+          "inputs": {
+            "indicatorsBuilt": "@length(body('Build_Stix_Objects'))",
+            "batchesAttempted": "@length(outputs('Chunk_Into_Batches'))",
+            "batchOutcome": "@result('For_Each_Batch')[0]?['status']",
+            "blacklistGeneratedAt": "@coalesce(body('Get_Blacklist')?['meta']?['generatedAt'], 'unknown')",
+            "validUntil": "@addDays(utcNow(), parameters('validDays'))",
+            "sourcesystem": "AbuseIPDB"
+          }
+        }
+      },
+      "outputs": {}
+    },
+    "parameters": {}
+  }
+}

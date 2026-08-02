@@ -1,0 +1,215 @@
+{
+  "comments": [
+    "la-incident-report - scheduled-style Sentinel incident digest delivered by email.",
+    "",
+    "Queries the workspace for recent incidents, renders an HTML summary, and emails it",
+    "with the full report attached as sentinel-incident-report.html.",
+    "",
+    "IMPORTANT - TRIGGER IS MANUAL, NOT SCHEDULED. The trigger is an HTTP request trigger,",
+    "so this playbook only runs when something invokes it. There is no Recurrence trigger,",
+    "which means the digest does not arrive on its own. A Consumption Logic App can hold",
+    "two triggers in JSON but the portal designer refuses to open workflows that do, so the",
+    "clean fix is a separate small scheduled playbook that calls this one's callback URL.",
+    "",
+    "DELIVERY PATH: uses the Azure Communication Services managed connector via an API",
+    "connection named acsemail. That connection must exist and be authorized in the target",
+    "resource group before deploying, and the sender must be a verified ACS domain.",
+    "Unlike the other playbooks in this repo it does NOT use managed identity, because the",
+    "ACS email connector has no managed-identity auth option.",
+    "",
+    "MONITORING: pair this with the analytics rule that watches",
+    "ACSEmailStatusUpdateOperational for DeliveryStatus not in (Delivered, Suppressed).",
+    "Without it, a bounced digest is indistinguishable from a delivered one - the Logic App",
+    "run still reports Succeeded because ACS accepted the message for delivery.",
+    "",
+    "Replace every <placeholder> below before deploying."
+  ],
+    "location":  "<azure-region>",
+    "identity":  {
+                     "principalId":  "f471790d-f63d-4144-af49-9238e0a14eb4",
+                     "tenantId":  "67e210ea-13c3-4511-8043-29b255d5a012",
+                     "type":  "SystemAssigned"
+                 },
+    "properties":  {
+                       "state":  "Enabled",
+                       "definition":  {
+                                          "$schema":  "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                                          "actions":  {
+                                                          "Compose_Report_Html":  {
+                                                                                      "inputs":  "@{concat('<!DOCTYPE html><html><head><meta charset=''utf-8''><title>Sentinel Incident Report</title><style>:root{--sev-high:#d13438;--sev-medium:#ff8c00;--sev-low:#ffb900;--sev-info:#0078D4;}*{box-sizing:border-box;}body{font-family:''Segoe UI'',system-ui,Arial,sans-serif;background:#f3f2f1;color:#201f1e;margin:0;padding:32px 16px;}.container{max-width:1100px;margin:0 auto;}.banner{background:linear-gradient(135deg,#0078D4,#005a9e);color:#fff;border-radius:12px 12px 0 0;padding:32px 36px;}.banner h1{margin:0 0 6px 0;font-size:26px;font-weight:600;}.banner .meta{font-size:13px;opacity:.85;}.summary{background:#fff;display:flex;gap:14px;padding:24px 36px;flex-wrap:wrap;border-bottom:1px solid #edebe9;}.stat{flex:1;min-width:110px;text-align:center;padding:14px 8px;border-radius:8px;background:#faf9f8;}.stat .num{font-size:30px;font-weight:700;line-height:1;}.stat .label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#605e5c;margin-top:6px;}.stat.high .num{color:var(--sev-high);}.stat.medium .num{color:var(--sev-medium);}.stat.low .num{color:var(--sev-low);}.stat.info .num{color:var(--sev-info);}.incidents{background:#fff;padding:8px 36px 32px;border-radius:0 0 12px 12px;}.incident{border:1px solid #edebe9;border-left:5px solid #ccc;border-radius:8px;margin-top:16px;padding:16px 18px;}.incident.high{border-left-color:var(--sev-high);}.incident.medium{border-left-color:var(--sev-medium);}.incident.low{border-left-color:var(--sev-low);}.incident.informational{border-left-color:var(--sev-info);}.incident-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}.incident-num{color:#605e5c;font-size:13px;font-weight:600;}.incident-title{font-size:15px;font-weight:600;flex:1;min-width:200px;}.badge{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.03em;}.badge.high{background:var(--sev-high);}.badge.medium{background:var(--sev-medium);}.badge.low{background:var(--sev-low);color:#3b2f00;}.badge.informational{background:var(--sev-info);}.status-pill{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:#edebe9;color:#323130;}.incident-time{font-size:12px;color:#605e5c;white-space:nowrap;margin-left:auto;}details.alerts{margin-top:10px;}details.alerts summary{cursor:pointer;font-size:12px;font-weight:600;color:#0078D4;outline:none;list-style:none;}details.alerts summary::-webkit-details-marker{display:none;}.alert-item{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid #f3f2f1;font-size:13px;flex-wrap:wrap;}.alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}.alert-dot.high{background:var(--sev-high);}.alert-dot.medium{background:var(--sev-medium);}.alert-dot.low{background:var(--sev-low);}.alert-dot.informational{background:var(--sev-info);}.alert-dot.unknown{background:#a19f9d;}.alert-name{font-weight:600;flex:1;min-width:200px;}.alert-time{color:#605e5c;font-size:11px;white-space:nowrap;margin-left:auto;}.tactic-pill{display:inline-block;background:#f3f2f1;color:#323130;border-radius:8px;padding:1px 8px;font-size:10px;}.no-incidents{text-align:center;padding:48px;color:#a19f9d;}.footer{text-align:center;font-size:11px;color:#a19f9d;margin-top:20px;}</style></head><body><div class=''container''><div class=''banner''><h1>Sentinel Incident Report</h1><div class=''meta''><your-workspace-name> &middot; Last ', outputs('Compose_SafeDays'), ' day(s) &middot; Generated ', utcNow(), '</div></div><div class=''summary''>', outputs('Compose_SummaryHtml'), '</div><div class=''incidents''>', outputs('Compose_RowsHtml'), '</div><div class=''footer''>Generated by la-incident-report &middot; <your-workspace-name></div></div></body></html>')}",
+                                                                                      "runAfter":  {
+                                                                                                       "Compose_RowsHtml":  [
+                                                                                                                                "Succeeded"
+                                                                                                                            ],
+                                                                                                       "Compose_SummaryHtml":  [
+                                                                                                                                   "Succeeded"
+                                                                                                                               ]
+                                                                                                   },
+                                                                                      "type":  "Compose"
+                                                                                  },
+                                                          "Compose_RowsHtml":  {
+                                                                                   "inputs":  "@{first(first(first(body('Get_Report_Rows')['tables'])['rows']))}",
+                                                                                   "runAfter":  {
+                                                                                                    "Get_Report_Rows":  [
+                                                                                                                            "Succeeded"
+                                                                                                                        ]
+                                                                                                },
+                                                                                   "type":  "Compose"
+                                                                               },
+                                                          "Compose_SafeDays":  {
+                                                                                   "inputs":  "@string(min(max(int(coalesce(triggerOutputs()?['queries']?['days'], '7')), 1), 90))",
+                                                                                   "runAfter":  {
+
+                                                                                                },
+                                                                                   "type":  "Compose"
+                                                                               },
+                                                          "Compose_SummaryHtml":  {
+                                                                                      "inputs":  "@{first(first(first(body('Get_Summary_Html')['tables'])['rows']))}",
+                                                                                      "runAfter":  {
+                                                                                                       "Get_Summary_Html":  [
+                                                                                                                                "Succeeded"
+                                                                                                                            ]
+                                                                                                   },
+                                                                                      "type":  "Compose"
+                                                                                  },
+                                                          "Get_Report_Rows":  {
+                                                                                  "inputs":  {
+                                                                                                 "authentication":  {
+                                                                                                                        "audience":  "https://api.loganalytics.io",
+                                                                                                                        "type":  "ManagedServiceIdentity"
+                                                                                                                    },
+                                                                                                 "body":  {
+                                                                                                              "query":  "let Base = SecurityIncident | where TimeGenerated > ago(@{outputs('Compose_SafeDays')}d) | summarize arg_max(TimeGenerated, *) by IncidentNumber | project IncidentNumber, Title, Severity, Status, CreatedTime, AlertIds; let AlertDetails = Base | mv-expand AlertId = AlertIds to typeof(string) | where isnotempty(AlertId) | join kind=leftouter (SecurityAlert | summarize arg_max(TimeGenerated, *) by SystemAlertId | project SystemAlertId, AlertName, AlertSeverity, AlertTimeGenerated=TimeGenerated, Tactics) on $left.AlertId == $right.SystemAlertId | order by AlertTimeGenerated desc | summarize AlertCount = count(), AlertListHtml = strcat_array(make_list(strcat('<div class=\"alert-item\"><span class=\"alert-dot ', tolower(coalesce(AlertSeverity,'unknown')), '\"></span><span class=\"alert-name\">', coalesce(AlertName,'(alert not found)'), '</span>', iff(isempty(tostring(Tactics)), '', strcat('<span class=\"tactic-pill\">', replace_string(tostring(Tactics), ',', '</span><span class=\"tactic-pill\">'), '</span>')), '<span class=\"alert-time\">', format_datetime(AlertTimeGenerated,'yyyy-MM-dd HH:mm'), '</span></div>')), '') by IncidentNumber; Base | join kind=leftouter (AlertDetails) on IncidentNumber | order by CreatedTime desc | project HtmlRow = strcat('<div class=\"incident ', tolower(Severity), '\"><div class=\"incident-head\"><span class=\"incident-num\">#', tostring(IncidentNumber), '</span><span class=\"incident-title\">', Title, '</span><span class=\"badge ', tolower(Severity), '\">', Severity, '</span><span class=\"status-pill\">', Status, '</span><span class=\"incident-time\">', format_datetime(CreatedTime,'yyyy-MM-dd HH:mm'), '</span></div>', iff(isempty(tostring(AlertListHtml)), '', strcat('<details class=\"alerts\"><summary>', tostring(coalesce(AlertCount,0)), iff(coalesce(AlertCount,0)==1, ' underlying alert', ' underlying alerts'), '</summary>', tostring(AlertListHtml), '</details>')), '</div>') | summarize AllRowsHtml = strcat_array(make_list(HtmlRow), '') | project AllRowsHtml = iff(isempty(AllRowsHtml), '<div class=\"no-incidents\">No incidents in this period.</div>', AllRowsHtml)"
+                                                                                                          },
+                                                                                                 "method":  "POST",
+                                                                                                 "uri":  "https://api.loganalytics.io/v1/workspaces/@{parameters('WorkspaceId')}/query"
+                                                                                             },
+                                                                                  "runAfter":  {
+                                                                                                   "Compose_SafeDays":  [
+                                                                                                                            "Succeeded"
+                                                                                                                        ]
+                                                                                               },
+                                                                                  "type":  "Http"
+                                                                              },
+                                                          "Get_Summary_Html":  {
+                                                                                   "inputs":  {
+                                                                                                  "authentication":  {
+                                                                                                                         "audience":  "https://api.loganalytics.io",
+                                                                                                                         "type":  "ManagedServiceIdentity"
+                                                                                                                     },
+                                                                                                  "body":  {
+                                                                                                               "query":  "SecurityIncident | where TimeGenerated > ago(@{outputs('Compose_SafeDays')}d) | summarize arg_max(TimeGenerated, *) by IncidentNumber | summarize Total=count(), High=countif(Severity=='High'), Medium=countif(Severity=='Medium'), Low=countif(Severity=='Low'), Informational=countif(Severity=='Informational') | project SummaryHtml = strcat('<div class=\"stat\"><div class=\"num\">', tostring(Total), '</div><div class=\"label\">Total</div></div>', '<div class=\"stat high\"><div class=\"num\">', tostring(High), '</div><div class=\"label\">High</div></div>', '<div class=\"stat medium\"><div class=\"num\">', tostring(Medium), '</div><div class=\"label\">Medium</div></div>', '<div class=\"stat low\"><div class=\"num\">', tostring(Low), '</div><div class=\"label\">Low</div></div>', '<div class=\"stat info\"><div class=\"num\">', tostring(Informational), '</div><div class=\"label\">Informational</div></div>')"
+                                                                                                           },
+                                                                                                  "method":  "POST",
+                                                                                                  "uri":  "https://api.loganalytics.io/v1/workspaces/@{parameters('WorkspaceId')}/query"
+                                                                                              },
+                                                                                   "runAfter":  {
+                                                                                                    "Compose_SafeDays":  [
+                                                                                                                             "Succeeded"
+                                                                                                                         ]
+                                                                                                },
+                                                                                   "type":  "Http"
+                                                                               },
+                                                          "Response":  {
+                                                                           "inputs":  {
+                                                                                          "body":  "@{outputs('Compose_Report_Html')}",
+                                                                                          "headers":  {
+                                                                                                          "Content-Disposition":  "attachment; filename=sentinel-incident-report.html",
+                                                                                                          "Content-Type":  "text/html; charset=utf-8"
+                                                                                                      },
+                                                                                          "statusCode":  200
+                                                                                      },
+                                                                           "kind":  "Http",
+                                                                           "runAfter":  {
+                                                                                            "Compose_Report_Html":  [
+                                                                                                                        "Succeeded"
+                                                                                                                    ]
+                                                                                        },
+                                                                           "type":  "Response"
+                                                                       },
+                                                          "Send_Email":  {
+                                                                             "inputs":  {
+                                                                                            "body":  {
+                                                                                                         "attachments":  [
+                                                                                                                             {
+                                                                                                                                 "contentInBase64":  "@{base64(outputs('Compose_Report_Html'))}",
+                                                                                                                                 "contentType":  "text/html",
+                                                                                                                                 "name":  "sentinel-incident-report.html"
+                                                                                                                             }
+                                                                                                                         ],
+                                                                                                         "content":  {
+                                                                                                                         "html":  "@{concat('<p>Sentinel incident report for the last ', outputs('Compose_SafeDays'), ' day(s), generated ', utcNow(), '. See attached HTML file.</p>')}",
+                                                                                                                         "subject":  "@{concat('Sentinel Incident Report - last ', outputs('Compose_SafeDays'), ' day(s)')}"
+                                                                                                                     },
+                                                                                                         "recipients":  {
+                                                                                                                            "to":  [
+                                                                                                                                       {
+                                                                                                                                           "address":  "<your-report-recipient@example.com>"
+                                                                                                                                       }
+                                                                                                                                   ]
+                                                                                                                        },
+                                                                                                         "senderAddress":  "DoNotReply@<your-acs-managed-domain-guid>.azurecomm.net"
+                                                                                                     },
+                                                                                            "host":  {
+                                                                                                         "connection":  {
+                                                                                                                            "name":  "@parameters('$connections')['acsemail']['connectionId']"
+                                                                                                                        }
+                                                                                                     },
+                                                                                            "method":  "post",
+                                                                                            "path":  "/emails:send",
+                                                                                            "queries":  {
+                                                                                                            "api-version":  "2023-03-31"
+                                                                                                        }
+                                                                                        },
+                                                                             "runAfter":  {
+                                                                                              "Compose_Report_Html":  [
+                                                                                                                          "Succeeded"
+                                                                                                                      ]
+                                                                                          },
+                                                                             "type":  "ApiConnection"
+                                                                         }
+                                                      },
+                                          "contentVersion":  "1.0.0.0",
+                                          "outputs":  {
+
+                                                      },
+                                          "parameters":  {
+                                                             "$connections":  {
+                                                                                  "defaultValue":  {
+
+                                                                                                   },
+                                                                                  "type":  "Object"
+                                                                              },
+                                                             "WorkspaceId":  {
+                                                                                 "metadata":  {
+                                                                                                  "description":  "Log Analytics workspace customerId (GUID), not the resource name."
+                                                                                              },
+                                                                                 "type":  "String"
+                                                                             }
+                                                         },
+                                          "triggers":  {
+                                                           "manual":  {
+                                                                          "inputs":  {
+                                                                                         "method":  "GET"
+                                                                                     },
+                                                                          "kind":  "Http",
+                                                                          "type":  "Request"
+                                                                      }
+                                                       }
+                                      },
+                       "parameters":  {
+                                          "$connections":  {
+                                                               "value":  {
+                                                                             "acsemail":  {
+                                                                                              "connectionId":  "/subscriptions/<your-subscription-id>/resourceGroups/<your-resource-group>/providers/Microsoft.Web/connections/acsemail-connection",
+                                                                                              "connectionName":  "acsemail-connection",
+                                                                                              "id":  "/subscriptions/<your-subscription-id>/providers/Microsoft.Web/locations/uaenorth/managedApis/acsemail"
+                                                                                          }
+                                                                         }
+                                                           },
+                                          "WorkspaceId":  {
+                                                              "value":  "<your-workspace-guid>"
+                                                          }
+                                      }
+                   }
+}

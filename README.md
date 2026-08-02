@@ -10,7 +10,7 @@ Personal Microsoft Sentinel SOC lab — deployed and configured end-to-end from 
 
 ## Analytics Rules (`/analytics-rules`)
 
-60 custom-authored scheduled rules — no gallery templates. Every rule was written against a table confirmed to be ingesting in this workspace, because a rule that cannot fire is worse than no rule: it creates the appearance of coverage.
+64 custom-authored scheduled rules — no gallery templates. Every rule was written against a table confirmed to be ingesting in this workspace, because a rule that cannot fire is worse than no rule: it creates the appearance of coverage.
 
 | Category | Rules | Data source |
 |---|---:|---|
@@ -28,13 +28,16 @@ See [`analytics-rules/README.md`](analytics-rules/README.md) for the full index 
 
 ## Playbooks (`/playbooks`)
 
-Logic App workflow definitions, exported as ARM templates. Secrets (API keys) live in Azure Key Vault and are read at runtime via the playbook's system-assigned Managed Identity — never passed as deployment parameters, never stored in the workflow itself.
+Logic App workflow definitions, exported as ARM templates. API keys live in Azure Key Vault and are read at runtime via the playbook's system-assigned Managed Identity — never passed as deployment parameters, never stored in the workflow itself. Where a credential does transit an action, `runtimeConfiguration.secureData` masks it so it cannot be recovered from run history.
 
 | Playbook | Trigger | Purpose | Status |
 |---|---|---|---|
 | `la-ip-enrichment.json` | HTTP (called from Sentinel incident) | Multi-source IP enrichment — queries both VirusTotal and AlienVault OTX in parallel, posts a combined summary (engine detection counts, threat-pulse count, reputation, ASN) as an incident comment. Each source degrades independently: if one is rate-limited or errors, the comment still posts with the other source's data rather than failing outright. | Live |
 | `la-user-containment.json` | HTTP (called from Sentinel incident) | On High-severity incidents, posts an incident comment recommending the associated account be disabled. Does **not** disable the account itself. | Live |
-| `la-email-alert.json` | HTTP (called from Sentinel incident) | Sends a formatted incident alert email via Azure Communication Services Email, then comments on the incident | Reference implementation — not currently deployed |
+| `la-incident-report.json` | HTTP request | Queries `SecurityIncident` joined to its underlying alerts, renders a styled HTML digest, and emails it with the full report attached. **Has no Recurrence trigger — it only runs when invoked.** See the note in the file header. | Live |
+| `la-ti-abuseipdb.json` | Recurrence, daily 06:00 | Pulls the AbuseIPDB blacklist and publishes each address as a STIX 2.1 indicator through the Sentinel threat-intelligence upload API, chunked to the API's 100-object limit. Indicators carry a 7-day `valid_until` because reputation data decays. | Live |
+
+One deliberate exception to the managed-identity rule: `la-incident-report` uses the Azure Communication Services email connector, which offers no managed-identity authentication, so it depends on an authorised API connection named `acsemail`. Every other playbook here uses plain HTTP actions with `ManagedServiceIdentity` auth and creates no API connection resources at all — which also means no interactive OAuth consent step at deploy time.
 
 ### Why the containment playbook recommends rather than acts
 
@@ -44,19 +47,24 @@ The playbook now posts a clear, actionable recommendation and stops. A human app
 
 ## Deploying
 
-Prerequisite: an Azure Key Vault holding secrets `VirusTotalApiKey` and `OTXApiKey`, with `Key Vault Secrets User` granted to whichever principal will run `la-ip-enrichment`.
+Prerequisite: an Azure Key Vault holding secrets `VirusTotalApiKey`, `OTXApiKey`, and `AbuseIPDBApiKey`, with `Key Vault Secrets User` granted to whichever principals will run `la-ip-enrichment` and `la-ti-abuseipdb`.
+
+Replace every `<placeholder>` in the JSON before deploying — the committed files carry no tenant-specific values.
 
 ```bash
 az deployment group create --resource-group <rg> --template-file playbooks/la-ip-enrichment.json --parameters KeyVaultName=<your-vault-name>
 az deployment group create --resource-group <rg> --template-file playbooks/la-user-containment.json
-az deployment group create --resource-group <rg> --template-file playbooks/la-email-alert.json
+az deployment group create --resource-group <rg> --template-file playbooks/la-ti-abuseipdb.json
+az deployment group create --resource-group <rg> --template-file playbooks/la-incident-report.json
 ```
 
 After deployment:
 
 1. Enable each Logic App's system-assigned managed identity
-2. Grant `la-ip-enrichment`'s identity `Key Vault Secrets User` on your vault
+2. Grant `la-ip-enrichment` and `la-ti-abuseipdb` `Key Vault Secrets User` on your vault
 3. Grant every playbook's identity `Microsoft Sentinel Contributor` on your workspace (needed to post incident comments)
+4. For `la-ti-abuseipdb`, that Sentinel Contributor grant **must be at workspace scope** — the threat-intelligence upload API rejects an identity that holds the role only at resource-group scope
+5. For `la-incident-report`, create and authorise an ACS email API connection named `acsemail` in the same resource group, with a verified sender domain
 
 No Graph permissions are required by any playbook in this repo.
 
